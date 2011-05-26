@@ -21,20 +21,25 @@ class TestFactory(protocol.ClientFactory):
         self.port = 5672
         self.delegate = TwistedDelegate()
         self.spec = txamqp.spec.load('file:../txamqp_ext/spec/amqp0-8.xml')
-        self.deferred = Deferred()
-        self.deferred.addErrback(self._err)
+        self.connected = Deferred()
+        self.connected.addErrback(self._err)
+        self.err_fail = True
         reactor.connectTCP(self.host, self.port, self)
 
     def startedConnecting(self, connector):
-        print 'started connecting'
+        pass
         
     def _err(self, failure):
-        print failure
-        raise failure
+        if self.err_fail:
+            print failure
+            raise failure
+        else:
+            pass
     
     def buildProtocol(self, addr):
         try:
             p = self.protocol(self.delegate, self.vhost, self.spec)
+            p._error = self._err
         except Exception, mess:
             print mess
         self.client = p
@@ -54,11 +59,32 @@ class TestFactory(protocol.ClientFactory):
 class ProtocolTest(TestCase):
     def setUp(self):
         self.f = TestFactory()
+        self.failError = True
 
     def test_001_connect(self):
-        return self.f.deferred
+        def _conn(*args):
+            d = self.f.client._auth_succ
+            return d
+        return self.f.connected.addCallback(_conn)
+
+    def test_002_read_opened(self):
+        def _on_connect(*args):
+            d = self.f.client.on_read_channel_opened()
+            return d
+        ret = self.f.connected
+        ret.addCallback(_on_connect)
+        return ret
+
+    def test_003_write_opened(self):
+        def _on_connect(*args):
+            d = self.f.client.on_write_channel_opened()
+            return d
+        ret = self.f.connected
+        ret.addCallback(_on_connect)
+        return ret
 
     def tearDown(self):
+        self.f.err_fail = False
         return self.f.close_transport()
         
         
