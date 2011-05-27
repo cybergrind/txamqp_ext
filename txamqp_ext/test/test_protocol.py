@@ -191,6 +191,7 @@ class ProtocolB(TestCase):
         return DeferredList(dl).addCallback(_test_num_sended)
 
     def tearDown(self):
+        return self.f.client.shutdown_protocol()
         self.f.err_fail = False
         return self.f.close_transport()
 

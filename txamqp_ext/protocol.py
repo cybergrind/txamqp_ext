@@ -232,6 +232,12 @@ class AmqpProtocol(AMQClient):
         return d
 
     def read_loop(self, *args):
+        '''
+        run read loop
+        we try to get messages from queue with timeout
+        if timeout fired - we got empty message, so we need
+        call read_loop again.
+        '''
         def _get_message(msg):
             self.factory.read_queue.put(msg)
             self._rloop_call = reactor.callLater(0, self.read_loop)
@@ -253,6 +259,13 @@ class AmqpProtocol(AMQClient):
         return self._read_loop_started
 
     def shutdown_protocol(self):
+        '''
+        During shutdown we should:
+        * unsubscribe read queue
+        * close channels
+        * close connection on channel0
+        * lose transport connection
+        '''
         def _lose_connection(_none):
             self.transport.loseConnection()
         def _close_connection(_none):
