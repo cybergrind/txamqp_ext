@@ -216,7 +216,7 @@ class ProtocolC(TestCase):
             d.addErrback(self.f._err)
             return d
         d2.addCallback(_read_started)
-        reactor.callLater(2, d2.callback, None)
+        reactor.callLater(0.5, d2.callback, None)
         return d2
 
     def test_002_send_receive(self):
@@ -255,6 +255,5 @@ class ProtocolC(TestCase):
 
 
     def tearDown(self):
-        self.f.err_fail = False
-        return self.f.close_transport()
+        return self.f.client.shutdown_protocol()
 

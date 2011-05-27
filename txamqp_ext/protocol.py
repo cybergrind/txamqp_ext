@@ -30,8 +30,13 @@ class AmqpProtocol(AMQClient):
         self._write_opened = Deferred()
         # callback on read_loop started
         self._read_loop_started = Deferred()
+        # callback on shutdown read loop
+        self._read_loop_down = Deferred()
         # read queue timeout
         self.q_timeout = 1
+        # read loop call
+        self._rloop_call = None
+        self.read_queue = None
         AMQClient.__init__(self, *args, **kwargs)
 
     def makeConnection(self, transport):
@@ -229,13 +234,14 @@ class AmqpProtocol(AMQClient):
     def read_loop(self, *args):
         def _get_message(msg):
             self.factory.read_queue.put(msg)
-            reactor.callLater(0, self.read_loop)
+            self._rloop_call = reactor.callLater(0, self.read_loop)
         def _get_empty(failure):
             failure.trap(txamqp.queue.Empty)
-            reactor.callLater(0, self.read_loop)
+            self._rloop_call =  reactor.callLater(0, self.read_loop)
         def _get_closed(failure):
             failure.trap(txamqp.queue.Closed)
-        d = self.read_queue.get(100)
+            self._read_loop_down.callback(True)
+        d = self.read_queue.get(self.q_timeout)
         d.addCallback(_get_message)
         d.addErrback(_get_empty)
         d.addErrback(_get_closed)
@@ -247,7 +253,30 @@ class AmqpProtocol(AMQClient):
         return self._read_loop_started
 
     def shutdown_protocol(self):
-        pass
+        def _lose_connection(_none):
+            self.transport.loseConnection()
+        def _close_connection(_none):
+            d = self.channels[0].connection_close()
+            if self._rloop_call and not self._rloop_call.called:
+                self._rloop_call.cancel()
+            return DeferredList([d]).addCallback(_lose_connection)
+        def _close_channels(_none):
+            if self.read_queue:
+                self.read_queue.close()
+            dl = []
+            if not self.write_chan.closed:
+                dl.append(self.write_chan.channel_close())
+            if not self.read_chan.closed:
+                dl.append(self.read_chan.channel_close())
+            return DeferredList(dl)
+        def _unsubscribe_read_queue(_none):
+            d = self.read_chan.basic_cancel(self.factory.consumer_tag)
+            return d
+        d = _unsubscribe_read_queue(None)
+        d.addCallback(_close_channels)
+        d.addCallback(_close_connection)
+        d.addErrback(self._error)
+        return d
 
 
 if __name__ == '__main__':
