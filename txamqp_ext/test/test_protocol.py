@@ -201,6 +201,7 @@ class ProtocolC(TestCase):
     def setUp(self):
         self.f = TestFactory()
         self.f.rq_enabled = True
+        self.f.delivery_mode = 2
         self.failError = True
         return self.f.connected
 
@@ -217,6 +218,41 @@ class ProtocolC(TestCase):
         d2.addCallback(_read_started)
         reactor.callLater(2, d2.callback, None)
         return d2
+
+    def test_002_send_receive(self):
+        NUM = 1000
+        t = time.time()
+        def _recv(msg, mess):
+            print 'RECV: %r'%msg
+            assert msg.body == mess, 'GOT: %r'%msg
+
+        def _sended(_none):
+            pass
+
+        def _send(_none, send_s):
+            d = Deferred()
+            d.addCallback(_sended)
+            d.addErrback(self.f._err)
+            msg = {'exchange': EXC,
+                   'rk': RK,
+                   'content': send_s,
+                   'callback': d}
+            self.f.send_queue.put(msg)
+        def _set_recv(_none, mess_s):
+            d = self.f.read_queue.get()
+            d.addErrback(_recv, mess_s)
+            return d
+        def _done(_none):
+            print 'TIME: %.6f NUM: %r'%(time.time()-t, NUM)
+
+        d = self.f.client.on_read_loop_started()
+        for i in xrange(NUM):
+            d.addCallback(_send, 'mess_%s'%i)
+            d.addCallback(_set_recv, 'mess_%s'%i)
+        d.addErrback(self.f._err)
+        d.addCallback(_done)
+        return d
+
 
     def tearDown(self):
         self.f.err_fail = False

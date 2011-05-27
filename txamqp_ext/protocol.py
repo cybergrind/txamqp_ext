@@ -193,35 +193,33 @@ class AmqpProtocol(AMQClient):
         q_dur = self.factory.rq_durable
         q_excl = self.factory.rq_exclusive
         q_auto_delete = self.factory.rq_auto_delete
+        no_ack = self.factory.no_ack
+        tag = self.factory.consumer_tag
 
-        def _consume_started(res):
-            self._read_loop_started.callback(res)
+        def _set_queue(queue):
+            self.read_queue = queue
+            self._read_loop_started.callback(True)
             reactor.callLater(0, self.read_loop)
 
+        def _consume_started(res):
+            return self.queue(tag).addCallback(_set_queue)
+
         def _queue_binded(res):
-            no_ack = self.factory.no_ack
-            tag = self.factory.consumer_tag
             d = self.read_chan.basic_consume(queue=q_name,
                                              no_ack=no_ack,
                                              consumer_tag=tag)
             d.addCallback(_consume_started)
             return d
 
-        def _set_queue(queue):
-            self.read_queue = queue
+        def _queue_declared(ok):
             d = self.read_chan.queue_bind(exchange=exc,
                                           queue=q_name,
                                           routing_key=q_rk)
             d.addCallback(_queue_binded)
             return d
 
-
-        def _queue_declared(ok):
-            d = self.queue(q_name).addCallback(_set_queue)
-            return d
-
         d = self.read_chan.queue_declare(queue=q_name,
-                                         durable=q_dur,
+                                         durable=True,
                                          exclusive=q_excl,
                                          auto_delete=q_auto_delete)
         d.addCallback(_queue_declared)
@@ -237,7 +235,7 @@ class AmqpProtocol(AMQClient):
             reactor.callLater(0, self.read_loop)
         def _get_closed(failure):
             failure.trap(txamqp.queue.Closed)
-        d = self.read_queue.get(self.q_timeout)
+        d = self.read_queue.get(100)
         d.addCallback(_get_message)
         d.addErrback(_get_empty)
         d.addErrback(_get_closed)
