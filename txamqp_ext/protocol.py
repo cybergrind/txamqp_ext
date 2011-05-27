@@ -7,6 +7,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.defer import DeferredList
 
+import txamqp
 from txamqp.client import TwistedDelegate
 from txamqp.protocol import AMQClient
 from txamqp.content import Content
@@ -29,6 +30,8 @@ class AmqpProtocol(AMQClient):
         self._write_opened = Deferred()
         # callback on read_loop started
         self._read_loop_started = Deferred()
+        # read queue timeout
+        self.q_timeout = 1
         AMQClient.__init__(self, *args, **kwargs)
 
     def makeConnection(self, transport):
@@ -39,8 +42,8 @@ class AmqpProtocol(AMQClient):
             AMQClient.makeConnection(self, transport)
         except Exception, mess:
             self.log.error('During makeConnection: %r'%mess)
-            print 'Error on make connection: %r'%mess            
-        
+            print 'Error on make connection: %r'%mess
+
     def connectionMade(self):
         AMQClient.connectionMade(self)
 
@@ -54,7 +57,13 @@ class AmqpProtocol(AMQClient):
         return d
 
     def _authenticated(self, _none):
-        self.factory.connected.callback(self)
+        '''
+        this function will be called after authentification
+        add call _auth_succ deferred
+        we open two separate channels for read and write
+        for use AMQP ability for multiplexing messaging
+        that will give ability to utilize all bandwidth
+        '''
         rd = self.channel(1)
         rd.addCallback(self._open_read_channel)
         rd.addErrback(self._error)
@@ -67,17 +76,31 @@ class AmqpProtocol(AMQClient):
         return dl
 
     def _open_read_channel(self, chan):
+        '''
+        called when have read channel
+        return deffered, called when channel will
+        be opened
+        '''
         self.read_chan = chan
         def _opened(*args):
             self._read_opened.callback(self.read_chan)
+            if self.factory.rq_enabled:
+                self.start_read_loop()
         d = self.read_chan.channel_open()
         d.addCallback(_opened)
         d.addErrback(self._error)
         return d
 
     def _open_write_channel(self, chan):
+        '''
+        called when have write channel
+        return deffered, called when channel will
+        be opened
+        '''
         self.write_chan = chan
         def _opened(*args):
+            self.factory.connected.callback(self)
+            self.connected = True
             self._write_opened.callback(self.write_chan)
             self.send_loop()
         d = self.write_chan.channel_open()
@@ -86,10 +109,19 @@ class AmqpProtocol(AMQClient):
         return d
 
     def _error(self, failure):
+        '''
+        all deferred should addErrback(self._error)
+        so, all errors will fail here
+        '''
         print failure.getTraceback()
         raise failure
 
     def send_loop(self, *args):
+        '''
+        this function initiate send_message process
+        we should store current message in fabric
+        since we can fail
+        '''
         # check for messages waiting sending
         if self.factory.processing_send:
             msg = self.factory.processing_send
@@ -100,6 +132,18 @@ class AmqpProtocol(AMQClient):
             msg.addErrback(self._error)
 
     def process_message(self, msg):
+        '''
+        all messages should be dict with same fields
+        {
+         @exchange - exchange name,
+         @rk - routing key,
+         @content - text or Content
+         @callback - deffered, that will be called after
+         message was sended
+         @tid - optional param, that should be unique
+         needed for syncronous messaging
+        }
+        '''
         # run one more task, if we have parallel factory
         if self.factory.parallel:
             reactor.callLater(0, self.send_loop)
@@ -142,17 +186,74 @@ class AmqpProtocol(AMQClient):
     def on_write_channel_opened(self):
         return self._write_opened
 
-    def start_read_loop(self, bindings):
-        pass
+    def start_read_loop(self):
+        exc = self.factory.rq_exchange
+        q_name = self.factory.rq_name
+        q_rk = self.factory.rq_rk
+        q_dur = self.factory.rq_durable
+        q_excl = self.factory.rq_exclusive
+        q_auto_delete = self.factory.rq_auto_delete
+
+        def _consume_started(res):
+            self._read_loop_started.callback(res)
+            reactor.callLater(0, self.read_loop)
+
+        def _queue_binded(res):
+            no_ack = self.factory.no_ack
+            tag = self.factory.consumer_tag
+            d = self.read_chan.basic_consume(queue=q_name,
+                                             no_ack=no_ack,
+                                             consumer_tag=tag)
+            d.addCallback(_consume_started)
+            return d
+
+        def _set_queue(queue):
+            self.read_queue = queue
+            d = self.read_chan.queue_bind(exchange=exc,
+                                          queue=q_name,
+                                          routing_key=q_rk)
+            d.addCallback(_queue_binded)
+            return d
+
+
+        def _queue_declared(ok):
+            d = self.queue(q_name).addCallback(_set_queue)
+            return d
+
+        d = self.read_chan.queue_declare(queue=q_name,
+                                         durable=q_dur,
+                                         exclusive=q_excl,
+                                         auto_delete=q_auto_delete)
+        d.addCallback(_queue_declared)
+        d.addErrback(self._error)
+        return d
+
+    def read_loop(self, *args):
+        def _get_message(msg):
+            self.factory.read_queue.put(msg)
+            reactor.callLater(0, self.read_loop)
+        def _get_empty(failure):
+            failure.trap(txamqp.queue.Empty)
+            reactor.callLater(0, self.read_loop)
+        def _get_closed(failure):
+            failure.trap(txamqp.queue.Closed)
+        d = self.read_queue.get(self.q_timeout)
+        d.addCallback(_get_message)
+        d.addErrback(_get_empty)
+        d.addErrback(_get_closed)
+        d.addErrback(self._error)
+        return d
+
 
     def on_read_loop_started(self):
-        pass
+        return self._read_loop_started
 
     def shutdown_protocol(self):
         pass
 
 
 if __name__ == '__main__':
-    am = AmqpProtocol(TwistedDelegate(), '/', txamqp.spec.load('file:txamqp_ext/spec/amqp0-8.xml'))
+    am = AmqpProtocol(TwistedDelegate(), '/',
+                      txamqp.spec.load('file:txamqp_ext/spec/amqp0-8.xml'))
 
 

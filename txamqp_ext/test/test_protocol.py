@@ -31,8 +31,20 @@ class TestFactory(protocol.ClientFactory):
         self.connected.addErrback(self._err)
         self.err_fail = True
         self.send_queue = DeferredQueue()
+        self.read_queue = DeferredQueue()
         self.processing_send = None
         self.parallel = True
+        self.delivery_mode = 2
+
+        self.rq_enabled = True
+        self.rq_exchange = EXC
+        self.rq_name = QUE
+        self.rq_rk = RK
+        self.rq_exclusive = False
+        self.rq_durable = True
+        self.rq_auto_delete = False
+        self.no_ack = True
+        self.consumer_tag = 'test_tag'
         reactor.connectTCP(self.host, self.port, self)
 
     def startedConnecting(self, connector):
@@ -105,10 +117,11 @@ class ProtocolA(TestCase):
         
 class ProtocolB(TestCase):
     '''
-    Connected tests
+    Connected write tests
     '''
     def setUp(self):
         self.f = TestFactory()
+        self.f.rq_enabled = False
         self.failError = True
         return self.f.connected
 
@@ -180,3 +193,32 @@ class ProtocolB(TestCase):
     def tearDown(self):
         self.f.err_fail = False
         return self.f.close_transport()
+
+class ProtocolC(TestCase):
+    '''
+    Connected read tests
+    '''
+    def setUp(self):
+        self.f = TestFactory()
+        self.f.rq_enabled = True
+        self.failError = True
+        return self.f.connected
+
+    def test_001_basic(self):
+        '''
+        test basic read loop started
+        and clear messages from previous tests
+        '''
+        d2 = Deferred()
+        def _read_started(_):
+            d = self.f.client.on_read_loop_started()
+            d.addErrback(self.f._err)
+            return d
+        d2.addCallback(_read_started)
+        reactor.callLater(2, d2.callback, None)
+        return d2
+
+    def tearDown(self):
+        self.f.err_fail = False
+        return self.f.close_transport()
+
