@@ -58,7 +58,6 @@ class AmqpProtocol(AMQClient):
         d = self.authenticate(self.factory.user, self.factory.password)
         d.addCallback(self._authenticated)
         d.addErrback(self._error)
-        #d.addCallback(self._auth_succ.callback)
         return d
 
     def _authenticated(self, _none):
