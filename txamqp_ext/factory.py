@@ -106,7 +106,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             if not self.parallel:
                 reactor.callLater(0, self.read_message_loop)
         if self.parallel:
-            reactor.callLater(0, self.read_message_loop)
+           reactor.callLater(0, self.read_message_loop)
         msg.addCallback(_get_msg)
 
     def shutdown_factory(self):
