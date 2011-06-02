@@ -11,11 +11,8 @@ from txamqp.client import TwistedDelegate
 import txamqp.spec
 
 from txamqp_ext.protocol import AmqpProtocol
+from txamqp_ext.test import EXC, QUE, RK
 
-
-EXC = 'test_exchange'
-QUE = 'test_queue'
-RK = 'test_route'
 
 class TestFactory(protocol.ClientFactory):
     protocol = AmqpProtocol
@@ -35,6 +32,7 @@ class TestFactory(protocol.ClientFactory):
         self.processing_send = None
         self.parallel = True
         self.delivery_mode = 2
+        self.tx_mode = False
 
         self.rq_enabled = True
         self.rq_exchange = EXC
@@ -45,18 +43,21 @@ class TestFactory(protocol.ClientFactory):
         self.rq_auto_delete = False
         self.no_ack = True
         self.consumer_tag = 'test_tag'
+
+        self.processing_send = None
+        self.send_retries = 0
         reactor.connectTCP(self.host, self.port, self)
 
     def startedConnecting(self, connector):
         pass
-        
+
     def _err(self, failure):
         if self.err_fail:
             print failure
             raise failure
         else:
             pass
-    
+
     def buildProtocol(self, addr):
         try:
             p = self.protocol(self.delegate, self.vhost, self.spec)
@@ -114,7 +115,8 @@ class ProtocolA(TestCase):
     def tearDown(self):
         self.f.err_fail = False
         return self.f.close_transport()
-        
+
+
 class ProtocolB(TestCase):
     '''
     Connected write tests
@@ -186,6 +188,54 @@ class ProtocolB(TestCase):
                    'rk': RK,
                    'content': 'cnt',
                    'callback': d}
+            self.f.send_queue.put(msg)
+            dl.append(d)
+        return DeferredList(dl).addCallback(_test_num_sended)
+
+    def test_003_test_tx_send(self):
+        self.f.parallel = False
+        NUM = 100
+        self.s = 0
+        t = time.time()
+        def _sended(res):
+            self.s += 1
+        def _test_num_sended(res):
+            assert self.s == NUM, 'sended: %r'%self.s
+            print 'TIME: %.4f NUM: %r'%(time.time()-t, NUM)
+        def _send_def():
+            return Deferred().addCallback(_sended).addErrback(self.f._err)
+        dl = []
+        for i in xrange(NUM):
+            d = _send_def()
+            msg = {'exchange': EXC,
+                   'rk': RK,
+                   'content': 'cnt',
+                   'callback': d,
+                   'tx':True}
+            self.f.send_queue.put(msg)
+            dl.append(d)
+        return DeferredList(dl).addCallback(_test_num_sended)
+
+    def test_004_test_tx_parallel_send(self):
+        self.f.parallel = True
+        NUM = 100
+        self.s = 0
+        t = time.time()
+        def _sended(res):
+            self.s += 1
+        def _test_num_sended(res):
+            assert self.s == NUM, 'sended: %r'%self.s
+            print 'TIME: %.4f NUM: %r'%(time.time()-t, NUM)
+        def _send_def():
+            return Deferred().addCallback(_sended).addErrback(self.f._err)
+        dl = []
+        for i in xrange(NUM):
+            d = _send_def()
+            msg = {'exchange': EXC,
+                   'rk': RK,
+                   'content': 'cnt',
+                   'callback': d,
+                   'tx':True}
             self.f.send_queue.put(msg)
             dl.append(d)
         return DeferredList(dl).addCallback(_test_num_sended)

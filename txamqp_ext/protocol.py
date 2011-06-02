@@ -21,7 +21,7 @@ class AmqpProtocol(AMQClient):
     log = logging.getLogger('AmqpProtocol')
 
     def __init__(self, *args, **kwargs):
-
+        print 'init protocol'
         # callback on authenticated
         self._auth_succ = Deferred()
         # callback on read_channel opened
@@ -37,6 +37,8 @@ class AmqpProtocol(AMQClient):
         # read loop call
         self._rloop_call = None
         self.read_queue = None
+
+        # failure traps
         AMQClient.__init__(self, *args, **kwargs)
 
     def makeConnection(self, transport):
@@ -112,11 +114,21 @@ class AmqpProtocol(AMQClient):
         d.addErrback(self._error)
         return d
 
+    def _trap_closed(self, failure):
+        failure.trap(txamqp.client.Closed)
+        print 'trap closed'
+        return True
+
     def _error(self, failure):
         '''
         all deferred should addErrback(self._error)
         so, all errors will fail here
+        you could define you traps, and add it to _traps
         '''
+        for trap in self.factory._traps:
+            if trap(failure):
+                return
+        print 'Failure protocol _error %r'%failure
         print failure.getTraceback()
         raise failure
 
@@ -129,7 +141,18 @@ class AmqpProtocol(AMQClient):
         # check for messages waiting sending
         if self.factory.processing_send:
             msg = self.factory.processing_send
-            self.process_message(msg)
+            self.factory.send_retries += 1
+            if self.factory.send_retries > self.factory.max_send_retries:
+                print '!!!!!!!!! DROP MESSAGE: %r'%msg
+                self.log.error('Drop message: %r'%msg)
+                self.factory.dropped_send_messages.put(msg)
+                self.factory.sending_message = None
+                self.factory.send_retries = 0
+                msg = self.factory.send_queue.get()
+                msg.addCallback(self.process_message)
+                msg.addErrback(self._error)
+            else:
+                self.process_message(msg)
         else:
             msg = self.factory.send_queue.get()
             msg.addCallback(self.process_message)
@@ -146,6 +169,7 @@ class AmqpProtocol(AMQClient):
          message was sended
          @tid - optional param, that should be unique
          needed for syncronous messaging
+         @tx - boolean that define transaction mode
         }
         '''
         # run one more task, if we have parallel factory
@@ -157,6 +181,10 @@ class AmqpProtocol(AMQClient):
         rk = msg.get('rk')
         content = msg.get('content')
         cb = msg.get('callback')
+        # get transaction flag of message
+        # you should set it to True if want
+        # send message in transaction
+        msg_tx = msg.get('tx', False)
         # convert to content type if not Content
         if type(content) != Content:
             content = Content(content)
@@ -172,17 +200,33 @@ class AmqpProtocol(AMQClient):
         def _after_send(res):
             if not cb.called:
                 cb.callback(res)
+            #print 'SEND NONE %r'%res
             self.factory.processing_send = None
             # if we have non-parallel factory
             # we should run next message only after
             # previous has been processed
             if not self.factory.parallel:
                 reactor.callLater(0, self.send_loop)
-        w = self.write_chan.basic_publish(exchange=exc,
-                                          routing_key=rk,
-                                          content=content)
-        w.addCallback(_after_send)
-        return w
+
+        def _commit_tx(res):
+            return self.write_chan.tx_commit()
+
+        def _send_message(res):
+            #print 'tx res: %r'%res
+            w = self.write_chan.basic_publish(exchange=exc,
+                                              routing_key=rk,
+                                              content=content)
+            #print 'send message %s'%content
+            return w
+        if (not self.factory.parallel) and (self.factory.tx_mode or msg_tx):
+            d = self.write_chan.tx_select()
+            d.addCallbacks(_send_message, self._error)
+            d.addCallbacks(_commit_tx, self._error)
+            d.addCallbacks(_after_send, self._error)
+        else:
+            d = _send_message(None)
+            d.addCallbacks(_after_send, self._error)
+        return d
 
     def on_read_channel_opened(self):
         return self._read_opened
@@ -269,20 +313,24 @@ class AmqpProtocol(AMQClient):
             self.transport.loseConnection()
         def _close_connection(_none):
             d = self.channels[0].connection_close()
+            d.addErrback(self._error)
             if self._rloop_call and not self._rloop_call.called:
                 self._rloop_call.cancel()
             return DeferredList([d]).addCallback(_lose_connection)
         def _close_channels(_none):
+            dl = []
             if self.read_queue:
                 self.read_queue.close()
-            dl = []
             if not self.write_chan.closed:
-                dl.append(self.write_chan.channel_close())
+                dl.append(self.write_chan.channel_close()\
+                          .addErrback(self._error))
             if not self.read_chan.closed:
-                dl.append(self.read_chan.channel_close())
+                dl.append(self.read_chan.channel_close()\
+                          .addErrback(self._error))
             return DeferredList(dl)
         def _unsubscribe_read_queue(_none):
             d = self.read_chan.basic_cancel(self.factory.consumer_tag)
+            d.addErrback(self._error)
             return d
         d = _unsubscribe_read_queue(None)
         d.addCallback(_close_channels)
