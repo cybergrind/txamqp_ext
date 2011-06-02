@@ -9,6 +9,7 @@ from twisted.internet.defer import DeferredQueue
 
 import txamqp
 from txamqp.client import TwistedDelegate
+from txamqp.queue import TimeoutDeferredQueue, Empty
 
 from txamqp_ext.protocol import AmqpProtocol
 
@@ -18,6 +19,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     log = logging.getLogger('AmqpReconnectingFactory')
 
     def __init__(self, parent, **kwargs):
+        self.parent = parent
         self.host = kwargs.get('host', 'localhost')
         self.port = kwargs.get('port', 5672)
         self.user = kwargs.get('user', 'guest')
@@ -40,7 +42,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self._traps = []
 
         self.rq_enabled = False
-        self.read_queue = DeferredQueue()
+        self.read_queue = TimeoutDeferredQueue()
         self.send_queue = DeferredQueue()
         self.dropped_send_messages = DeferredQueue()
         self.processing_send = None
@@ -70,9 +72,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                          no_ack=True):
         self.rq_enabled = True
         self.rq_exchange = exchange
-
-        self.rq_name = queue_name
-        self.consumer_tag = queue_name
+        if queue_name:
+            self.rq_name = queue_name
+        else:
+            self.rq_name = '%s_%s_read_queue'%(self.parent.__class__.__name__,
+                                               hex(hash(self.parent))[-4:])
         self.rq_rk = routing_key
         self.rq_exclusive = exclusive
         self.rq_durable = durable
@@ -80,20 +84,21 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.no_ack = no_ack
         self.rq_callback = callback
         if not self.consumer_tag:
-            self.consumer_tag = queue_name
-        ret = self.on_read_loop_started()
-        ret.addCallback(self.read_message_loop)
-        ret.addErrback(self._error)
-        return ret
+            self.consumer_tag = self.rq_name
+        def _add_cb(_none):
+            ret = self.client.on_read_loop_started()
+            ret.addCallback(self.read_message_loop)
+            ret.addErrback(self._error)
+            return ret
+        c = self.connected
+        c.addCallbacks(_add_cb, self._error)
+        return c
 
     def buildProtocol(self, addr):
         p = self.protocol(self.delegate, self.vhost, self.spec)
         self.client = p
         self.client.factory = self
         self.resetDelay()
-        #if not self._reconnect_enabled:
-        #    print 'Not enabled'
-        #    self.stopTrying()
         return p
 
     def clientConnectionFailed(self, connector, reason):
@@ -139,11 +144,14 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     def read_message_loop(self, *args):
         msg = self.read_queue.get()
         def _get_msg(msg):
-            if msg.startswith('{'):
+            if msg.content.body.startswith('{'):
                 msg_out = cjson.decode(msg.content.body)
             else:
                 msg_out = msg.content.body
-            self.callback(msg_out)
+            self.rq_callback(msg_out)
+            if not self.no_ack:
+                self.client.read_chan.basic_ack(msg.delivery_tag,
+                                                multiple=False)
             if not self.parallel:
                 reactor.callLater(0, self.read_message_loop)
         if self.parallel:

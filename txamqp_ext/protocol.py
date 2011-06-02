@@ -265,7 +265,6 @@ class AmqpProtocol(AMQClient):
                                           routing_key=q_rk)
             d.addCallback(_queue_binded)
             return d
-
         d = self.read_chan.queue_declare(queue=q_name,
                                          durable=True,
                                          exclusive=q_excl,
@@ -282,6 +281,7 @@ class AmqpProtocol(AMQClient):
         call read_loop again.
         '''
         def _get_message(msg):
+            #print 'get msg: %r'%msg
             self.factory.read_queue.put(msg)
             self._rloop_call = reactor.callLater(0, self.read_loop)
         def _get_empty(failure):
