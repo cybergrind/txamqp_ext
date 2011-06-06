@@ -48,7 +48,7 @@ class FactoryA(TestCase):
         d = self.f.connected
         def _sd(_none):
             d2 = Deferred()
-            reactor.callLater(30, d2.callback, None)
+            reactor.callLater(5, d2.callback, None)
             d1 = self.f.client.shutdown_protocol()
             return DeferredList([d1, d2])
         d.addCallback(_sd)

@@ -38,6 +38,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.consumer_tag = kwargs.get('tag', '')
         # transaction mode
         self.tx_mode = kwargs.get('transaction', False)
+        # tid name. write this in header of message
+        self.tid_name = kwargs.get('tid_name', 'tid')
         # traps for catch errors from protocol
         self._traps = []
 
@@ -110,6 +112,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 .clientConnectionFailed(self, connector, reason)
 
     def clientConnectionLost(self, connector, reason):
+        '''
+        amqp errors cause connectionLost
+        '''
         self.init_deferreds()
 
         if not self._stopping:
@@ -163,3 +168,32 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.stopTrying()
         return self.client.shutdown_protocol()
 
+
+class AmqpSynFactory(AmqpReconnectingFactory):
+    '''
+    This factory implement non-blocking synchronous calls
+    '''
+    def __init__(self, parent, **kwargs):
+        self.route_back = kwargs.get('route_back', 'route_back')
+        self.push_dict = {}
+        AmqpReconnectingFactory(self, parent, **kwargs)
+        self.connected.addCallback(self._setup_read)
+
+    def _setup_read(self, _none):
+        pass
+
+    def setup_push(self, exchange, rk, timeout=None, timeout_msg=None):
+        '''
+        setup push exchange and routing key
+        when we push messages, we will use this attributes
+        '''
+        self.push_exchange = exchange
+        self.push_rk = rk
+        self.push_timeout = timeout
+        self.push_timeout_msg = timeout_msg
+
+    def push_message(self, msg, callback, timeout_sec):
+        pass
+
+    def timeout(self, callback, timeout_msg):
+        pass
