@@ -1,5 +1,6 @@
 
 import logging
+import time
 
 from twisted.internet import reactor
 from twisted.internet import protocol
@@ -40,6 +41,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.tx_mode = kwargs.get('transaction', False)
         # tid name. write this in header of message
         self.tid_name = kwargs.get('tid_name', 'tid')
+        # return Content instead string or dict
+        self.full_content = kwargs.get('full_content', False)
         # traps for catch errors from protocol
         self._traps = []
 
@@ -68,7 +71,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     def add_trap(self, trap):
         self._traps.append(trap)
 
-    def setup_read_queue(self, exchange, routing_key, callback,
+    def setup_read_queue(self, exchange, routing_key, callback=None,
                          queue_name=None, exclusive=False,
                          durable=False, auto_delete=True,
                          no_ack=True):
@@ -77,8 +80,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if queue_name:
             self.rq_name = queue_name
         else:
-            self.rq_name = '%s_%s_read_queue'%(self.parent.__class__.__name__,
-                                               hex(hash(self.parent))[-4:])
+            self.rq_name = '%s_%s_%s_read_queue'%(
+                self.parent.__class__.__name__,
+                time.time(),
+                hex(hash(self.parent))[-4:])
         self.rq_rk = routing_key
         self.rq_exclusive = exclusive
         self.rq_durable = durable
@@ -126,7 +131,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     def send_message(self, exchange, routing_key, msg, **kwargs):
         '''
         basic method for send message to amqp broker
-        kwargs parameters is:
+       kwargs parameters is:
           @tx <bool> send message in transaction
           @callback <deferred> callback that will called after sending
         '''
@@ -145,15 +150,21 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                    }
         msg_dict.update(kwargs)
         self.send_queue.put(msg_dict)
+        return callback
 
     def read_message_loop(self, *args):
         msg = self.read_queue.get()
         def _get_msg(msg):
-            if msg.content.body.startswith('{'):
-                msg_out = cjson.decode(msg.content.body)
+            # TODO add support for different types
+            if not self.full_content:
+                if msg.content.body.startswith('{'):
+                    msg_out = cjson.decode(msg.content.body)
+                else:
+                    msg_out = msg.content.body
             else:
-                msg_out = msg.content.body
-            self.rq_callback(msg_out)
+                msg_out = msg.content
+            if callable(self.rq_callback):
+                self.rq_callback(msg_out)
             if not self.no_ack:
                 self.client.read_chan.basic_ack(msg.delivery_tag,
                                                 multiple=False)
@@ -168,6 +179,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.stopTrying()
         return self.client.shutdown_protocol()
 
+class TimeoutException(Exception):
+    pass
 
 class AmqpSynFactory(AmqpReconnectingFactory):
     '''
@@ -176,10 +189,15 @@ class AmqpSynFactory(AmqpReconnectingFactory):
     def __init__(self, parent, **kwargs):
         self.route_back = kwargs.get('route_back', 'route_back')
         self.push_dict = {}
-        AmqpReconnectingFactory(self, parent, **kwargs)
+        self.push_exchange = kwargs['exchange']
+        self.push_rk = kwargs['rk']
+        self.default_timeout = kwargs.get('timeout', 5)
+        AmqpReconnectingFactory.__init__(self, parent, **kwargs)
+        self.full_content = True
         self.connected.addCallback(self._setup_read)
 
     def _setup_read(self, _none):
+        #reactor.callLater(0, self.push_read_loop)
         pass
 
     def setup_push(self, exchange, rk, timeout=None, timeout_msg=None):
@@ -192,8 +210,52 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.push_timeout = timeout
         self.push_timeout_msg = timeout_msg
 
-    def push_message(self, msg, callback, timeout_sec):
-        pass
+    def push_message(self, msg, timeout_sec=None, **kwargs):
+        d = Deferred()
+        #if msg.get('tid'):
+        #    tid = content[self.factory.tid_name] = msg['tid']
+        #if msg.get(self.factory.tid_name):
+        #    tid = content[self.factory.tid_name] = msg[self.factory.tid_name]
+        #else:
+        tid = str(int(time.time()*1e7))
+        # user given timeout if have, else - default
+        timeout = timeout_sec or self.default_timeout
+        self.push_dict[tid] = d
+        msg_dict = {'exchange': self.push_exchange,
+                    'rk': self.push_rk,
+                    'content': msg,
+                    'callback': Deferred(),
+                    'tid': tid
+                   }
+        msg_dict.update(kwargs)
+        self.send_queue.put(msg_dict)
+        reactor.callLater(timeout, self.timeout, tid, d)
+        return d
 
-    def timeout(self, callback, timeout_msg):
-        pass
+    def setup_read_queue(self, *args, **kwargs):
+        r = AmqpReconnectingFactory.setup_read_queue(self, *args, **kwargs)
+        self.rq_callback = self.push_read_process
+
+    def push_read_process(self, msg):
+        print '!!READ MESSAGE: %r'%msg
+        print self.push_dict
+        tid = msg['headers'].get('tid')
+        print 'TID: %r'%tid
+        if tid in self.push_dict:
+            # TODO: add decode message
+            self.push_dict[tid].callback(msg)
+            del self.push_dict[tid]
+        else:
+            print 'RRRR'
+        #reactor.callLater(0, self.push_read_loop)
+
+    def push_read_loop(self):
+        d = self.read_queue.get().addCallback(self.push_read_process)
+        d.addErrback(self._error)
+
+    def timeout(self, tid, callback):
+        print 'timeout for tid: %r %r'%(tid, callback.called)
+        if not callback.called:
+            del self.push_dict[tid]
+            print 'errback'
+            callback.errback(TimeoutException('syn_timeout'))

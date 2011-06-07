@@ -191,9 +191,12 @@ class AmqpProtocol(AMQClient):
         # setup tid in Content.properties
         # tid will be unique id for back message
         if msg.get('tid'):
-            content[self.factory.tid_name] = msg['tid']
+            content['headers'] = {self.factory.tid_name:str(msg['tid'])}
+        elif msg.get(self.factory.tid_name):
+            content['headers'] = {self.factory.tid_name:str(msg[self.factory.tid_name])}
         else:
-            content[self.factory.tid_name] = int(time.time()*1e7)
+            content['headers'] = {self.factory.tid_name:str(int(time.time()*1e7))}
+        print content
         # set delivery mode if not provided
         if not content.properties.get('delivery mode'):
             content['delivery mode'] = getattr(self.factory, 'delivery_mode', 2)

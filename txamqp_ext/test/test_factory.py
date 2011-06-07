@@ -7,7 +7,8 @@ from twisted.trial.unittest import TestCase
 from txamqp.content import Content
 
 from txamqp_ext.factory import AmqpReconnectingFactory
-from txamqp_ext.test import EXC, QUE, RK
+from txamqp_ext.factory import AmqpSynFactory
+from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
 
 
 class FactoryA(TestCase):
@@ -99,6 +100,51 @@ class FactoryB(TestCase):
     def tearDown(self):
         return self.f.shutdown_factory()
 
+class FactoryC(TestCase):
+    def setUp(self):
+        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
+                  'parallel': False,
+                  'exchange': EXC,
+                  'full_content': True,
+                  'rk': RK2 }
+        self.f = AmqpSynFactory(self, **kwargs)
+        self.f.setup_read_queue(EXC, RK3,
+                                durable=False,
+                                auto_delete=True,
+                                exclusive=True)
+        self.f2 = AmqpReconnectingFactory(self, **kwargs)
+        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                     durable=False,
+                                     auto_delete=True,
+                                     exclusive=True)
+        return self.f.connected
 
+    def _test_echoer(self, msg):
+        print 'RECV %s'%msg
+        c = Content(msg.body)
+        print msg['headers'].get('tid')
+        c['headers'] = {'tid': msg['headers'].get('tid')}
+        c['tid'] = msg['headers'].get('tid')
+        #c['tid'] = msg['tid']
+        print 'Back: %s'%c
+        self.f2.send_message(EXC, RK3, c, tid=msg['headers'].get('tid'))
+
+    def test_01_basic_start(self):
+        pass
+
+    def test_02_send_rec(self):
+        def _get_result(result):
+            print 'GOT RESULT: %r'%result
+        d = self.f.push_message('test')
+        d.addCallback(_get_result)
+        d2 = Deferred()
+        reactor.callLater(6, d2.callback, None)
+        return DeferredList([d2, d])
+
+    def tearDown(self):
+        dl = []
+        dl.append(self.f.shutdown_factory())
+        dl.append(self.f2.shutdown_factory())
+        return DeferredList(dl)
 
 

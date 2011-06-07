@@ -42,6 +42,7 @@ class TestFactory(protocol.ClientFactory):
         self.rq_durable = True
         self.rq_auto_delete = False
         self.no_ack = True
+        self.tid_name = 'tid'
         self.consumer_tag = 'test_tag'
 
         self.processing_send = None
