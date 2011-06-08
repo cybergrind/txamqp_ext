@@ -193,10 +193,11 @@ class AmqpProtocol(AMQClient):
         if msg.get('tid'):
             content['headers'] = {self.factory.tid_name:str(msg['tid'])}
         elif msg.get(self.factory.tid_name):
-            content['headers'] = {self.factory.tid_name:str(msg[self.factory.tid_name])}
+            cdict = {self.factory.tid_name:str(msg[self.factory.tid_name])}
+            content['headers'] = cdict
         else:
-            content['headers'] = {self.factory.tid_name:str(int(time.time()*1e7))}
-        print content
+            cdict = {self.factory.tid_name:str(int(time.time()*1e7))}
+            content['headers'] = cdict
         # set delivery mode if not provided
         if not content.properties.get('delivery mode'):
             content['delivery mode'] = getattr(self.factory, 'delivery_mode', 2)

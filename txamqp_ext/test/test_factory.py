@@ -1,4 +1,6 @@
 
+import time
+
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.defer import DeferredList
@@ -106,6 +108,7 @@ class FactoryC(TestCase):
                   'parallel': False,
                   'exchange': EXC,
                   'full_content': True,
+                  'delivery_mode': 1,
                   'rk': RK2 }
         self.f = AmqpSynFactory(self, **kwargs)
         self.f.setup_read_queue(EXC, RK3,
@@ -120,26 +123,40 @@ class FactoryC(TestCase):
         return self.f.connected
 
     def _test_echoer(self, msg):
-        print 'RECV %s'%msg
         c = Content(msg.body)
-        print msg['headers'].get('tid')
         c['headers'] = {'tid': msg['headers'].get('tid')}
         c['tid'] = msg['headers'].get('tid')
         #c['tid'] = msg['tid']
-        print 'Back: %s'%c
         self.f2.send_message(EXC, RK3, c, tid=msg['headers'].get('tid'))
 
     def test_01_basic_start(self):
         pass
 
     def test_02_send_rec(self):
+        d1 = Deferred()
         def _get_result(result):
             print 'GOT RESULT: %r'%result
+            d1.callback(True)
         d = self.f.push_message('test')
         d.addCallback(_get_result)
-        d2 = Deferred()
-        reactor.callLater(6, d2.callback, None)
-        return DeferredList([d2, d])
+        return DeferredList([d1, d])
+
+    def test_03_send_rec_many(self):
+        d = {}
+        def _get_result(result):
+            tid = result['headers']['tid']
+            assert result.body == tid
+            d[tid].callback(True)
+        for i in xrange(500):
+            tid = str(int(time.time()*1e7))
+            d[tid] = Deferred()
+            d1 = self.f.push_message(tid, tid=tid)
+            d1.addCallback(_get_result)
+            d1.addErrback(self._err)
+        return DeferredList(d.values())
+
+    def _err(self, failure):
+        raise failure
 
     def tearDown(self):
         dl = []

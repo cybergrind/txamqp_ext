@@ -192,6 +192,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.push_exchange = kwargs['exchange']
         self.push_rk = kwargs['rk']
         self.default_timeout = kwargs.get('timeout', 5)
+        self._timeout_calls = {}
         AmqpReconnectingFactory.__init__(self, parent, **kwargs)
         self.full_content = True
         self.connected.addCallback(self._setup_read)
@@ -212,12 +213,14 @@ class AmqpSynFactory(AmqpReconnectingFactory):
 
     def push_message(self, msg, timeout_sec=None, **kwargs):
         d = Deferred()
-        #if msg.get('tid'):
-        #    tid = content[self.factory.tid_name] = msg['tid']
-        #if msg.get(self.factory.tid_name):
-        #    tid = content[self.factory.tid_name] = msg[self.factory.tid_name]
-        #else:
-        tid = str(int(time.time()*1e7))
+        if kwargs.get('tid'):
+            tid = kwargs['tid']
+        elif type(msg) == dict and msg.get('tid'):
+            tid = content[self.factory.tid_name] = msg['tid']
+        elif type(msg) == dict and  msg.get(self.factory.tid_name):
+            tid = msg[self.factory.tid_name]
+        else:
+            tid = str(int(time.time()*1e7))
         # user given timeout if have, else - default
         timeout = timeout_sec or self.default_timeout
         self.push_dict[tid] = d
@@ -229,7 +232,8 @@ class AmqpSynFactory(AmqpReconnectingFactory):
                    }
         msg_dict.update(kwargs)
         self.send_queue.put(msg_dict)
-        reactor.callLater(timeout, self.timeout, tid, d)
+        _to = reactor.callLater(timeout, self.timeout, tid, d)
+        self._timeout_calls[tid] = _to
         return d
 
     def setup_read_queue(self, *args, **kwargs):
@@ -237,10 +241,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.rq_callback = self.push_read_process
 
     def push_read_process(self, msg):
-        print '!!READ MESSAGE: %r'%msg
-        print self.push_dict
         tid = msg['headers'].get('tid')
-        print 'TID: %r'%tid
         if tid in self.push_dict:
             # TODO: add decode message
             self.push_dict[tid].callback(msg)
@@ -254,8 +255,15 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         d.addErrback(self._error)
 
     def timeout(self, tid, callback):
-        print 'timeout for tid: %r %r'%(tid, callback.called)
+        del self._timeout_calls[tid]
         if not callback.called:
             del self.push_dict[tid]
             print 'errback'
             callback.errback(TimeoutException('syn_timeout'))
+
+    def shutdown_factory(self):
+        r = AmqpReconnectingFactory.shutdown_factory(self)
+        dl = []
+        for tid, to in self._timeout_calls.iteritems():
+            to.cancel()
+        return r
