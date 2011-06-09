@@ -48,6 +48,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.full_content = kwargs.get('full_content', False)
         # serialization
         self.serialization = kwargs.get('serialization', 'cjson')
+        # return deferred that will send reply
+        self.push_back = kwargs.get('push_back', False)
+        # route back name
+        self.rb_name = kwargs.get('route_back', 'route_back')
         # traps for catch errors from protocol
         self._traps = []
 
@@ -172,6 +176,19 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.send_queue.put(msg_dict)
         return callback
 
+    def wrap_back(self, msg):
+        d = Deferred()
+        def _push_message(reply):
+            route = msg.content['headers'].get(self.rb_name)
+            tid = msg.content['headers'].get('tid')
+            d1 = self.send_message(self.rq_exchange, route, reply,
+                                   tid=tid)
+            d1.addErrback(self._error)
+            return d1
+        d.addCallback(_push_message)
+        d.addErrback(self._error)
+        return d
+
     def read_message_loop(self, *args):
         msg = self.read_queue.get()
         def _get_msg(msg):
@@ -186,7 +203,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             else:
                 msg_out = msg.content
             if callable(self.rq_callback):
-                self.rq_callback(msg_out)
+                if not self.push_back:
+                    self.rq_callback(msg_out)
+                else:
+                    d = self.wrap_back(msg)
+                    self.rq_callback(msg_out, d)
             if not self.no_ack:
                 self.client.read_chan.basic_ack(msg.delivery_tag,
                                                 multiple=False)
@@ -217,11 +238,6 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self._timeout_calls = {}
         AmqpReconnectingFactory.__init__(self, parent, **kwargs)
         self.full_content = True
-        self.connected.addCallback(self._setup_read)
-
-    def _setup_read(self, _none):
-        #reactor.callLater(0, self.push_read_loop)
-        pass
 
     def setup_push(self, exchange, rk, timeout=None, timeout_msg=None):
         '''
@@ -247,11 +263,13 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         timeout = timeout_sec or self.default_timeout
         self.push_dict[tid] = d
         msg = self.encode_message(msg)
+
         msg_dict = {'exchange': self.push_exchange,
                     'rk': self.push_rk,
                     'content': msg,
                     'callback': Deferred(),
-                    'tid': tid
+                    'tid': tid,
+                    self.rb_name: self.rq_rk
                    }
         msg_dict.update(kwargs)
         self.send_queue.put(msg_dict)
@@ -264,6 +282,9 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.rq_callback = self.push_read_process
 
     def push_read_process(self, msg):
+        '''
+        push message return
+        '''
         tid = msg['headers'].get('tid')
         if tid in self.push_dict:
             # TODO: add decode message
@@ -278,6 +299,9 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         d.addErrback(self._error)
 
     def timeout(self, tid, callback):
+        '''
+        reactor call timeout
+        '''
         del self._timeout_calls[tid]
         if not callback.called:
             del self.push_dict[tid]

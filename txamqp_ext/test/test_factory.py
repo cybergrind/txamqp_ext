@@ -1,5 +1,6 @@
 
 import time
+from copy import copy
 
 import cjson
 from twisted.internet import reactor
@@ -143,6 +144,67 @@ class FactoryC(TestCase):
         return DeferredList([d1, d])
 
     def test_03_send_rec_many(self):
+        d = {}
+        def _get_result(result):
+            tid = result['headers']['tid']
+            assert result.body == tid, 'body: %r'%result.body
+            d[tid].callback(True)
+        for i in xrange(500):
+            tid = str(int(time.time()*1e7))
+            d[tid] = Deferred()
+            d1 = self.f.push_message(tid, tid=tid)
+            d1.addCallback(_get_result)
+            d1.addErrback(self._err)
+        return DeferredList(d.values())
+
+    def _err(self, failure):
+        raise failure
+
+    def tearDown(self):
+        dl = []
+        dl.append(self.f.shutdown_factory())
+        dl.append(self.f2.shutdown_factory())
+        return DeferredList(dl)
+
+class FactoryD(TestCase):
+    def setUp(self):
+        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
+                  'parallel': False,
+                  'exchange': EXC,
+                  'full_content': True,
+                  'delivery_mode': 1,
+                  'rk': RK2 }
+        kwargs2 = copy(kwargs)
+        kwargs2['push_back'] = True
+        self.f = AmqpSynFactory(self, **kwargs)
+        self.f.setup_read_queue(EXC, RK3,
+                                durable=False,
+                                auto_delete=True,
+                                exclusive=True)
+        self.f2 = AmqpReconnectingFactory(self, **kwargs2)
+        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                     durable=False,
+                                     auto_delete=True,
+                                     exclusive=True)
+        return self.f.connected
+
+    def _test_echoer(self, msg, d):
+        tid=msg['headers'].get('tid')
+        return d.callback(tid)
+
+    def test_01_pb_basic_start(self):
+        pass
+
+    def test_02_pb_send_rec(self):
+        d1 = Deferred()
+        def _get_result(result):
+            print 'GOT RESULT: %r'%result
+            d1.callback(True)
+        d = self.f.push_message('test')
+        d.addCallback(_get_result)
+        return DeferredList([d1, d])
+
+    def test_03_pb_send_rec_many(self):
         d = {}
         def _get_result(result):
             tid = result['headers']['tid']

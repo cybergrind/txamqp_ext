@@ -198,6 +198,8 @@ class AmqpProtocol(AMQClient):
         else:
             cdict = {self.factory.tid_name:str(int(time.time()*1e7))}
             content['headers'] = cdict
+        if msg.get('route_back'):
+            content['headers']['route_back'] = msg['route_back']
         # set delivery mode if not provided
         if not content.properties.get('delivery mode'):
             content['delivery mode'] = getattr(self.factory, 'delivery_mode', 2)
