@@ -1,7 +1,9 @@
 
 import logging
 import time
+import cPickle
 
+import cjson
 from twisted.internet import reactor
 from twisted.internet import protocol
 from twisted.internet.defer import Deferred
@@ -10,6 +12,7 @@ from twisted.internet.defer import DeferredQueue
 
 import txamqp
 from txamqp.client import TwistedDelegate
+from txamqp.content import Content
 from txamqp.queue import TimeoutDeferredQueue, Empty
 
 from txamqp_ext.protocol import AmqpProtocol
@@ -43,6 +46,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.tid_name = kwargs.get('tid_name', 'tid')
         # return Content instead string or dict
         self.full_content = kwargs.get('full_content', False)
+        # serialization
+        self.serialization = kwargs.get('serialization', 'cjson')
         # traps for catch errors from protocol
         self._traps = []
 
@@ -128,6 +133,23 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         protocol.ReconnectingClientFactory\
                 .clientConnectionLost(self, connector, reason)
 
+    def encode_message(self, msg):
+        if type(msg) == Content:
+            msg_body = msg.body
+        else:
+            msg_body = msg
+        if self.serialization == 'cjson':
+            encoded = cjson.encode(msg_body)
+        elif self.serialization == 'cPickle':
+            encoded = cPickle.dumps(msg_body)
+        else:
+            encoded = str(msg_body)
+        if type(msg) == Content:
+            msg.body = encoded
+        else:
+            msg = Content(encoded)
+        return msg
+
     def send_message(self, exchange, routing_key, msg, **kwargs):
         '''
         basic method for send message to amqp broker
@@ -135,14 +157,12 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
           @tx <bool> send message in transaction
           @callback <deferred> callback that will called after sending
         '''
-        if type(msg) in (dict, list):
-            msg = cjson.encode(msg)
 
         if 'callback' in kwargs:
             callback = kwargs['callback']
         else:
             callback = Deferred()
-
+        msg = self.encode_message(msg)
         msg_dict = {'exchange': exchange,
                     'rk': routing_key,
                     'content': msg,
@@ -156,11 +176,13 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         msg = self.read_queue.get()
         def _get_msg(msg):
             # TODO add support for different types
+            if self.serialization == 'cjson':
+                msg.content.body = cjson.decode(msg.content.body)
+            elif self.serialization == 'cPickle':
+                msg.content.body = cPickle.loads(msg.content.body)
+
             if not self.full_content:
-                if msg.content.body.startswith('{'):
-                    msg_out = cjson.decode(msg.content.body)
-                else:
-                    msg_out = msg.content.body
+                msg_out = msg.content.body
             else:
                 msg_out = msg.content
             if callable(self.rq_callback):
@@ -224,6 +246,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         # user given timeout if have, else - default
         timeout = timeout_sec or self.default_timeout
         self.push_dict[tid] = d
+        msg = self.encode_message(msg)
         msg_dict = {'exchange': self.push_exchange,
                     'rk': self.push_rk,
                     'content': msg,

@@ -1,6 +1,7 @@
 
 import time
 
+import cjson
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.defer import DeferredList
@@ -145,7 +146,7 @@ class FactoryC(TestCase):
         d = {}
         def _get_result(result):
             tid = result['headers']['tid']
-            assert result.body == tid
+            assert result.body == tid, 'body: %r'%result.body
             d[tid].callback(True)
         for i in xrange(500):
             tid = str(int(time.time()*1e7))
