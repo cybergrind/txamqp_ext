@@ -51,7 +51,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         # return deferred that will send reply
         self.push_back = kwargs.get('push_back', False)
         # route back name
-        self.rb_name = kwargs.get('route_back', 'route_back')
+        self.rb_name = kwargs.get('rb_name', 'route_back')
         # traps for catch errors from protocol
         self._traps = []
 
