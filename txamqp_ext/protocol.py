@@ -37,7 +37,6 @@ class AmqpProtocol(AMQClient):
         # read loop call
         self._rloop_call = None
         self.read_queue = None
-
         # failure traps
         AMQClient.__init__(self, *args, **kwargs)
 
@@ -57,6 +56,7 @@ class AmqpProtocol(AMQClient):
         # set that we are not connected
         # since we should authenticate and open channels
         self.connected = False
+        print 'go authentication'
         d = self.authenticate(self.factory.user, self.factory.password)
         d.addCallback(self._authenticated)
         d.addErrback(self._error)
@@ -70,6 +70,7 @@ class AmqpProtocol(AMQClient):
         for use AMQP ability for multiplexing messaging
         that will give ability to utilize all bandwidth
         '''
+        print 'authenticated'
         rd = self.channel(1)
         rd.addCallback(self._open_read_channel)
         rd.addErrback(self._error)
@@ -191,14 +192,14 @@ class AmqpProtocol(AMQClient):
             content = Content(content)
         # setup tid in Content.properties
         # tid will be unique id for back message
+        if not 'headers' in content.properties:
+            content['headers'] = {}
         if msg.get('tid'):
-            content['headers'] = {self.factory.tid_name:str(msg['tid'])}
+            content['headers'][self.factory.tid_name] = str(msg['tid'])
         elif msg.get(self.factory.tid_name):
-            cdict = {self.factory.tid_name:str(msg[self.factory.tid_name])}
-            content['headers'] = cdict
+            content['headers'][self.factory.tid_name] = str(msg[self.factory.tid_name])
         else:
-            cdict = {self.factory.tid_name:str(int(time.time()*1e7))}
-            content['headers'] = cdict
+            content['headers'][self.factory.tid_name] = str(int(time.time()*1e7))
         if msg.get('route_back'):
             content['headers']['route_back'] = msg['route_back']
         # set delivery mode if not provided
