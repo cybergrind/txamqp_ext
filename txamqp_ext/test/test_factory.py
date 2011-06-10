@@ -12,6 +12,7 @@ from txamqp.content import Content
 
 from txamqp_ext.factory import AmqpReconnectingFactory
 from txamqp_ext.factory import AmqpSynFactory
+from txamqp_ext.factory import SimpleListenFactory
 from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
 
 
@@ -190,6 +191,7 @@ class FactoryD(TestCase):
         return dl
 
     def _test_echoer(self, msg, d):
+        print 'Got msg: %r %r'%(msg, d)
         tid=msg['headers'].get('tid')
         return d.callback(tid)
 
@@ -277,7 +279,39 @@ class FactoryF(FactoryD):
                                      durable=False,
                                      auto_delete=True,
                                      exclusive=True)
-        return self.f.connected
+        dl = DeferredList([self.f.connected, self.f2.connected])
+        return dl
+
+class FactoryG(FactoryD):
+    def setUp(self):
+        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
+                  'parallel': False,
+                  'exchange': EXC,
+                  'full_content': True,
+                  'delivery_mode': 1,
+                  'parallel': False,
+                  'rk': RK2 }
+        kwargs2 = copy(kwargs)
+        kwargs2['push_back'] = True
+        self.f = AmqpSynFactory(self, **kwargs)
+        self.f.setup_read_queue(EXC,
+                                durable=False,
+                                auto_delete=True,
+                                exclusive=True)
+        self.f2 = SimpleListenFactory(self,
+                                      spec = 'file:../txamqp_ext/spec/amqp0-8.xml',
+                                      rq_rk=RK2,
+                                      exchange=EXC,
+                                      callback=self._test_echoer
+                                      )
+        dl = DeferredList([self.f.connected, self.f2.connected])
+        return dl
+
+    def _test_echoer(self, msg, d):
+        return d.callback(msg)
+
+
+
 
 
 

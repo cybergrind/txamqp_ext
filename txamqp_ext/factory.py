@@ -224,6 +224,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         msg = self.read_queue.get()
         def _get_msg(msg):
+            if self.parallel and not self._stopping:
+                dc = reactor.callLater(0, self.read_message_loop)
+                self._read_dc = dc
             # TODO add support for different types
             if self.serialization == 'cjson':
                 msg.content.body = cjson.decode(msg.content.body)
@@ -245,9 +248,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             if not self.no_ack:
                 self.client.read_chan.basic_ack(msg.delivery_tag,
                                                 multiple=False)
-        if self.parallel and not self._stopping:
-           dc = reactor.callLater(0, self.read_message_loop)
-           self._read_dc = dc
         msg.addCallback(_get_msg)
 
     def shutdown_factory(self):
@@ -268,7 +268,6 @@ class AmqpSynFactory(AmqpReconnectingFactory):
     This factory implement non-blocking synchronous calls
     '''
     def __init__(self, parent, **kwargs):
-        self.route_back = kwargs.get('route_back', 'route_back')
         self.push_dict = {}
         self.push_exchange = kwargs['exchange']
         self.push_rk = kwargs['rk']
@@ -356,3 +355,24 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         for tid, to in self._timeout_calls.iteritems():
             to.cancel()
         return r
+
+
+class SimpleListenFactory(AmqpReconnectingFactory):
+    def __init__(self, parent, **kwargs):
+        '''
+        you need define only three params in kwargs
+        rk, exchange and callback
+        '''
+        kwargs['push_back'] = True
+        AmqpReconnectingFactory.__init__(self, parent, **kwargs)
+        self.push_back = True
+        rq_rk = kwargs.get('rq_rk')
+        exc = kwargs.get('exchange')
+        cb = kwargs.get('callback')
+        self.setup_read_queue(exc,
+                              rq_rk,
+                              callback=cb,
+                              durable=False,
+                              auto_delete=True,
+                              exclusive=True)
+
