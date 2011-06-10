@@ -299,7 +299,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
             tid = kwargs['tid']
         elif type(msg) == dict and msg.get('tid'):
             tid = content[self.tid_name] = msg['tid']
-        elif type(msg) == dict and  msg.get(self.factory.tid_name):
+        elif type(msg) == dict and  msg.get(self.tid_name):
             tid = msg[self.tid_name]
         else:
             tid = str(int(time.time()*1e7))
