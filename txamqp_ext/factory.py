@@ -276,6 +276,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.push_rk = kwargs['rk']
         self.default_timeout = kwargs.get('timeout', 5)
         self._timeout_calls = {}
+        self.def_full_content = kwargs.get('full_content', False)
         AmqpReconnectingFactory.__init__(self, parent, **kwargs)
         self.full_content = True
         self.push_timeout_msg = None
@@ -337,7 +338,10 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         tid = msg['headers'].get('tid')
         if tid in self.push_dict:
             # TODO: add decode message
-            self.push_dict[tid].callback(msg)
+            if self.def_full_content:
+                self.push_dict[tid].callback(msg)
+            else:
+                self.push_dict[tid].callback(msg.body)
             del self.push_dict[tid]
         else:
             print 'RRRR'
@@ -378,6 +382,7 @@ class SimpleListenFactory(AmqpReconnectingFactory):
         '''
         kwargs['push_back'] = True
         kwargs['no_ack'] = True
+        kwargs['full_content'] = False
         AmqpReconnectingFactory.__init__(self, parent, **kwargs)
         self.push_back = True
         rq_rk = kwargs.get('rq_rk')
