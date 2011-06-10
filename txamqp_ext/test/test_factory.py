@@ -211,7 +211,7 @@ class FactoryD(TestCase):
     def test_03_pb_send_rec_many(self):
         d = {}
         def _get_result(result):
-            tid = result['headers']['tid']
+            tid = result['headers'][self.f.tid_name]
             assert result.body == tid, 'body: %r'%result.body
             d[tid].callback(True)
         for i in xrange(250):
@@ -321,6 +321,8 @@ class FactoryH(FactoryD):
                   'full_content': True,
                   'delivery_mode': 1,
                   'parallel': False,
+                  'tid_name': 'webID',
+                  'rb_name': 'routing_key',
                   'rk': RK }
         kwargs2 = copy(kwargs)
         kwargs2['push_back'] = True
@@ -334,7 +336,9 @@ class FactoryH(FactoryD):
                                       rq_rk=RK,
                                       rq_name = QUE,
                                       exchange=EXC,
-                                      callback=self._test_echoer
+                                      callback=self._test_echoer,
+                                      tid_name='webID',
+                                      rb_name='routing_key'
                                       )
         dl = DeferredList([self.f.connected, self.f2.connected])
         return dl

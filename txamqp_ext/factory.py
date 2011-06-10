@@ -204,7 +204,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         d = Deferred()
         def _push_message(reply):
             route = msg.content['headers'].get(self.rb_name)
-            tid = msg.content['headers'].get('tid')
+            tid = msg.content['headers'].get(self.tid_name)
             d1 = self.send_message(self.rq_exchange, route, reply,
                                    tid=tid)
             d1.addErrback(self._error)
@@ -313,7 +313,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
                     'rk': self.push_rk,
                     'content': msg,
                     'callback': Deferred(),
-                    'tid': tid,
+                    self.tid_name: tid,
                     self.rb_name: self.rq_rk
                    }
         msg_dict.update(kwargs)
@@ -335,7 +335,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         '''
         push message return
         '''
-        tid = msg['headers'].get('tid')
+        tid = msg['headers'].get(self.tid_name)
         if tid in self.push_dict:
             # TODO: add decode message
             if self.def_full_content:
