@@ -177,7 +177,7 @@ class FactoryD(TestCase):
         kwargs2 = copy(kwargs)
         kwargs2['push_back'] = True
         self.f = AmqpSynFactory(self, **kwargs)
-        self.f.setup_read_queue(EXC, RK3,
+        self.f.setup_read_queue(EXC,
                                 durable=False,
                                 auto_delete=True,
                                 exclusive=True)

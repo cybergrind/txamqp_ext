@@ -80,7 +80,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     def add_trap(self, trap):
         self._traps.append(trap)
 
-    def setup_read_queue(self, exchange, routing_key, callback=None,
+    def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
                          durable=False, auto_delete=True,
                          no_ack=True):
@@ -93,7 +93,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 self.parent.__class__.__name__,
                 time.time(),
                 hex(hash(self.parent))[-4:])
-        self.rq_rk = routing_key
+        if routing_key:
+            self.rq_rk = routing_key
+        else:
+            self.rq_rk = 'route_back.%s.%s'%(self.parent.__class__.__name__,
+                                             time.time())
         self.rq_exclusive = exclusive
         self.rq_durable = durable
         self.rq_auto_delete = auto_delete
