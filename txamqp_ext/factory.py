@@ -278,6 +278,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self._timeout_calls = {}
         AmqpReconnectingFactory.__init__(self, parent, **kwargs)
         self.full_content = True
+        self.push_timeout_msg = None
 
     def setup_push(self, exchange, rk, timeout=None, timeout_msg=None):
         '''
@@ -297,9 +298,9 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         if kwargs.get('tid'):
             tid = kwargs['tid']
         elif type(msg) == dict and msg.get('tid'):
-            tid = content[self.factory.tid_name] = msg['tid']
+            tid = content[self.tid_name] = msg['tid']
         elif type(msg) == dict and  msg.get(self.factory.tid_name):
-            tid = msg[self.factory.tid_name]
+            tid = msg[self.tid_name]
         else:
             tid = str(int(time.time()*1e7))
         # user given timeout if have, else - default
@@ -316,7 +317,11 @@ class AmqpSynFactory(AmqpReconnectingFactory):
                    }
         msg_dict.update(kwargs)
         self.send_queue.put(msg_dict)
-        _to = reactor.callLater(timeout, self.timeout, tid, d)
+        if not 'default' in kwargs:
+            _to = reactor.callLater(timeout, self.timeout, tid, d)
+        else:
+            _to = reactor.callLater(timeout, self.timeout,
+                                    tid, d, kwargs['default'])
         self._timeout_calls[tid] = _to
         d.addErrback(self._error)
         return d
@@ -342,7 +347,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         d = self.read_queue.get().addCallback(self.push_read_process)
         d.addErrback(self._error)
 
-    def timeout(self, tid, callback):
+    def timeout(self, tid, callback, default=None):
         '''
         reactor call timeout
         '''
@@ -350,7 +355,12 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         if not callback.called:
             del self.push_dict[tid]
             print 'errback'
-            callback.errback(TimeoutException('syn_timeout'))
+            if default:
+                callback.callback(default)
+            elif self.push_timeout_msg:
+                callback.callback(self.push_timeout_msg)
+            else:
+                callback.errback(TimeoutException('syn_timeout'))
 
     def shutdown_factory(self):
         r = AmqpReconnectingFactory.shutdown_factory(self)
