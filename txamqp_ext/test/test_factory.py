@@ -186,7 +186,8 @@ class FactoryD(TestCase):
                                      durable=False,
                                      auto_delete=True,
                                      exclusive=True)
-        return self.f.connected
+        dl = DeferredList([self.f.connected, self.f2.connected])
+        return dl
 
     def _test_echoer(self, msg, d):
         tid=msg['headers'].get('tid')
@@ -200,9 +201,11 @@ class FactoryD(TestCase):
         def _get_result(result):
             print 'GOT RESULT: %r'%result
             d1.callback(True)
-        d = self.f.push_message('test')
-        d.addCallback(_get_result)
-        return DeferredList([d1, d])
+        def _push_msg():
+            d = self.f.push_message('test')
+            d.addCallback(_get_result)
+        reactor.callLater(0.05, _push_msg)
+        return DeferredList([d1])
 
     def test_03_pb_send_rec_many(self):
         d = {}
@@ -210,7 +213,7 @@ class FactoryD(TestCase):
             tid = result['headers']['tid']
             assert result.body == tid, 'body: %r'%result.body
             d[tid].callback(True)
-        for i in xrange(500):
+        for i in xrange(250):
             tid = str(int(time.time()*1e7))
             d[tid] = Deferred()
             d1 = self.f.push_message(tid, tid=tid)
@@ -226,5 +229,55 @@ class FactoryD(TestCase):
         dl.append(self.f.shutdown_factory())
         dl.append(self.f2.shutdown_factory())
         return DeferredList(dl)
+
+
+class FactoryE(FactoryD):
+    def setUp(self):
+        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
+                  'parallel': False,
+                  'exchange': EXC,
+                  'full_content': True,
+                  'delivery_mode': 1,
+                  'serialization': 'cPickle',
+                  'parallel': True,
+                  'rk': RK2 }
+        kwargs2 = copy(kwargs)
+        kwargs2['push_back'] = True
+        self.f = AmqpSynFactory(self, **kwargs)
+        self.f.setup_read_queue(EXC,
+                                durable=False,
+                                auto_delete=True,
+                                exclusive=True)
+        self.f2 = AmqpReconnectingFactory(self, **kwargs2)
+        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                     durable=False,
+                                     auto_delete=True,
+                                     exclusive=True)
+        return self.f.connected
+
+class FactoryF(FactoryD):
+    def setUp(self):
+        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
+                  'parallel': False,
+                  'exchange': EXC,
+                  'full_content': True,
+                  'delivery_mode': 1,
+                  'serialization': 'cPickle',
+                  'parallel': False,
+                  'rk': RK2 }
+        kwargs2 = copy(kwargs)
+        kwargs2['push_back'] = True
+        self.f = AmqpSynFactory(self, **kwargs)
+        self.f.setup_read_queue(EXC,
+                                durable=False,
+                                auto_delete=True,
+                                exclusive=True)
+        self.f2 = AmqpReconnectingFactory(self, **kwargs2)
+        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                     durable=False,
+                                     auto_delete=True,
+                                     exclusive=True)
+        return self.f.connected
+
 
 

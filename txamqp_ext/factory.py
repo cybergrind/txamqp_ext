@@ -64,6 +64,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.max_send_retries = 2
         self.client = None
 
+        # read delayed call. need for stop parallel read
+        self._read_dc = None
+
         self._stopping = False
         self.init_deferreds()
         reactor.connectTCP(self.host, self.port, self)
@@ -73,17 +76,26 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.connected.addErrback(self._error)
 
     def _error(self, failure):
+        '''
+        default error handler
+        '''
         print 'error: %r'%failure.getTraceback()
         self.log.error(failure.getTraceback())
         raise failure
 
     def add_trap(self, trap):
+        '''
+        add traps for errors
+        '''
         self._traps.append(trap)
 
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
                          durable=False, auto_delete=True,
                          no_ack=True):
+        '''
+        if you need read queue support, you should call this method
+        '''
         self.rq_enabled = True
         self.rq_exchange = exchange
         if queue_name:
@@ -142,6 +154,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 .clientConnectionLost(self, connector, reason)
 
     def encode_message(self, msg):
+        '''
+        default method for encode amqp message body
+        '''
         if type(msg) == Content:
             msg_body = msg.body
         else:
@@ -181,6 +196,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         return callback
 
     def wrap_back(self, msg):
+        '''
+        wrap message, to support back messages
+        we get some info from message headers (tid and route_back key)
+        and send reply with this data
+        '''
         d = Deferred()
         def _push_message(reply):
             route = msg.content['headers'].get(self.rb_name)
@@ -189,11 +209,19 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                    tid=tid)
             d1.addErrback(self._error)
             return d1
+        def _read_new(_none):
+            if not self.parallel and not self._stopping:
+                reactor.callLater(0, self.read_message_loop)
         d.addCallback(_push_message)
+        if not self.parallel:
+            d.addCallback(_read_new)
         d.addErrback(self._error)
         return d
 
     def read_message_loop(self, *args):
+        '''
+        default message read method
+        '''
         msg = self.read_queue.get()
         def _get_msg(msg):
             # TODO add support for different types
@@ -209,20 +237,26 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             if callable(self.rq_callback):
                 if not self.push_back:
                     self.rq_callback(msg_out)
+                    if not self.parallel and not self._stopping:
+                        reactor.callLater(0, self.read_message_loop)
                 else:
                     d = self.wrap_back(msg)
                     self.rq_callback(msg_out, d)
             if not self.no_ack:
                 self.client.read_chan.basic_ack(msg.delivery_tag,
                                                 multiple=False)
-            if not self.parallel:
-                reactor.callLater(0, self.read_message_loop)
-        if self.parallel:
-           reactor.callLater(0, self.read_message_loop)
+        if self.parallel and not self._stopping:
+           dc = reactor.callLater(0, self.read_message_loop)
+           self._read_dc = dc
         msg.addCallback(_get_msg)
 
     def shutdown_factory(self):
+        '''
+        shutdown factory in correct way
+        '''
         self._stopping = True
+        if self._read_dc and not self._read_dc.called:
+            self._read_dc.cancel()
         self.stopTrying()
         return self.client.shutdown_protocol()
 
@@ -254,6 +288,9 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.push_timeout_msg = timeout_msg
 
     def push_message(self, msg, timeout_sec=None, **kwargs):
+        '''
+        this method is realization of syncronous calls over amqp
+        '''
         d = Deferred()
         if kwargs.get('tid'):
             tid = kwargs['tid']
@@ -279,6 +316,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.send_queue.put(msg_dict)
         _to = reactor.callLater(timeout, self.timeout, tid, d)
         self._timeout_calls[tid] = _to
+        d.addErrback(self._error)
         return d
 
     def setup_read_queue(self, *args, **kwargs):
