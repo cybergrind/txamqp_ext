@@ -84,6 +84,7 @@ class ProtocolA(TestCase):
     '''
     Tests for connection
     '''
+    timeout = 30
     def setUp(self):
         self.f = TestFactory()
         self.failError = True
@@ -123,6 +124,7 @@ class ProtocolB(TestCase):
     '''
     Connected write tests
     '''
+    timeout = 30
     def setUp(self):
         self.f = TestFactory()
         self.f.rq_enabled = False
@@ -251,6 +253,7 @@ class ProtocolC(TestCase):
     '''
     Connected read tests
     '''
+    timeout = 30
     def setUp(self):
         self.f = TestFactory()
         self.f.rq_enabled = True

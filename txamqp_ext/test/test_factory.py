@@ -17,6 +17,7 @@ from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
 
 
 class FactoryA(TestCase):
+    timeout = 10
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False}
@@ -68,6 +69,7 @@ class FactoryA(TestCase):
 
 
 class FactoryB(TestCase):
+    timeout = 10
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False}
@@ -106,6 +108,7 @@ class FactoryB(TestCase):
         return self.f.shutdown_factory()
 
 class FactoryC(TestCase):
+    timeout = 10
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False,
@@ -168,6 +171,7 @@ class FactoryC(TestCase):
         return DeferredList(dl)
 
 class FactoryD(TestCase):
+    timeout = 10
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False,
