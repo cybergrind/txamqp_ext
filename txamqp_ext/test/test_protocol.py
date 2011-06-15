@@ -44,6 +44,7 @@ class TestFactory(protocol.ClientFactory):
         self.no_ack = True
         self.tid_name = 'tid'
         self.consumer_tag = 'test_tag'
+        self.rb_name = 'route_back'
 
         self.processing_send = None
         self.send_retries = 0
