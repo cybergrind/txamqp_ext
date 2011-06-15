@@ -115,6 +115,7 @@ class FactoryC(TestCase):
                   'exchange': EXC,
                   'full_content': True,
                   'delivery_mode': 1,
+                  'timeout': 10,
                   'rk': RK2 }
         self.f = AmqpSynFactory(self, **kwargs)
         self.f.setup_read_queue(EXC, RK3,
@@ -245,6 +246,7 @@ class FactoryE(FactoryD):
                   'delivery_mode': 1,
                   'serialization': 'cPickle',
                   'parallel': True,
+                  'timeout': 10,
                   'rk': RK2 }
         kwargs2 = copy(kwargs)
         kwargs2['push_back'] = True
@@ -293,6 +295,7 @@ class FactoryG(FactoryD):
                   'full_content': True,
                   'delivery_mode': 1,
                   'parallel': False,
+                  'timeout': 10,
                   'rk': RK2 }
         kwargs2 = copy(kwargs)
         kwargs2['push_back'] = True
@@ -318,6 +321,7 @@ class FactoryG(FactoryD):
         return d.callback(msg)
 
 class FactoryH(FactoryD):
+    timeout = 30
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False,
@@ -327,6 +331,7 @@ class FactoryH(FactoryD):
                   'parallel': False,
                   'tid_name': 'webID',
                   'rb_name': 'routing_key',
+                  'timeout':15,
                   'rk': RK }
         kwargs2 = copy(kwargs)
         kwargs2['push_back'] = True
@@ -348,6 +353,8 @@ class FactoryH(FactoryD):
         return dl
 
     def _test_echoer(self, msg, d):
+        if msg == 'test_message':
+            return
         return d.callback(msg)
 
 
