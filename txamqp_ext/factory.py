@@ -304,13 +304,21 @@ class AmqpSynFactory(AmqpReconnectingFactory):
             tid = msg[self.tid_name]
         else:
             tid = str(int(time.time()*1e7))
+        if 'rk' in kwargs:
+            rk = kwargs['rk']
+        else:
+            rk = self.push_rk
+        if 'exchange' in kwargs:
+            exchange = kwargs['exchange']
+        else:
+            exchange = self.push_exchange
         # user given timeout if have, else - default
         timeout = timeout_sec or self.default_timeout
         self.push_dict[tid] = d
         msg = self.encode_message(msg)
 
-        msg_dict = {'exchange': self.push_exchange,
-                    'rk': self.push_rk,
+        msg_dict = {'exchange': exchange,
+                    'rk': rk,
                     'content': msg,
                     'callback': Deferred(),
                     self.tid_name: tid,
