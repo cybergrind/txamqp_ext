@@ -89,6 +89,26 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         self._traps.append(trap)
 
+    def declare(self, items):
+        '''
+        declare things, exchanges, queues, bindings
+        example:
+        {'type': 'queue', 'kwargs': {'exhchange': 'exchange_name',
+                                     'durable': True,
+                                     'auto_delete': False,
+                                     'type': 'topic'}}
+        '''
+        def _declare(d):
+            getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
+        def _connected(_none):
+            if type(items) == list:
+                d = map(_declare, items)
+                return d
+            else:
+                return _declare(items)
+        r = self.connected.addCallbacks(_connected, self._error)
+        return r
+
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
                          durable=False, auto_delete=True,

@@ -61,6 +61,14 @@ class FactoryA(TestCase):
         d.addCallback(_sd)
         return d
 
+    def test_004_declare(self):
+        self.f.declare([{'kwargs': {'exchange': 'test2',
+                                    'auto_delete': False,
+                                    'durable': True,
+                                    'type': 'topic',},
+                         'type': 'exchange'}])
+        return self.f.connected
+
     def _err(self, failure):
         print failure.getTraceback()
 
