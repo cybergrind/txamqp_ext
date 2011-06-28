@@ -98,16 +98,20 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                      'auto_delete': False,
                                      'type': 'topic'}}
         '''
+        declared = Deferred()
+        def _declared(_none):
+            declared.callback(True)
         def _declare(d):
-            getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
-        def _connected(_none):
+            return getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
+        def _connected(_none, *args, **kwargs):
             if type(items) == list:
                 d = map(_declare, items)
-                return d
+                return DeferredList(d).addCallbacks(_declared, self._error)
             else:
-                return _declare(items)
-        r = self.connected.addCallbacks(_connected, self._error)
-        return r
+                return _declare(items).addCallbacks(_declared, self._error)
+        r = self.connected.addCallback(_connected)
+        return self.connected
+        
 
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
