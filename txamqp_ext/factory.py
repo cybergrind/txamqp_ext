@@ -421,15 +421,10 @@ class SimpleListenFactory(AmqpReconnectingFactory):
         exc = kwargs.get('exchange')
         cb = kwargs.get('callback')
         rq_name = kwargs.get('rq_name')
-        def _check(key, default):
-            if key in kwargs:
-                return kwargs[key]
-            else:
-                return default
-        durable = _check('rq_durable', True)
-        auto_delete = _check('rq_autodelete', False)
-        exclusive = _check('exclusive', False)
-        no_ack = _check('no_ack', False)
+        durable = kwargs.get('rq_durable', True)
+        auto_delete = kwargs.get('rq_autodelete', False)
+        exclusive = kwargs.get('exclusive', False)
+        no_ack = kwargs.get('no_ack', False)
         self.setup_read_queue(exc,
                               rq_rk,
                               queue_name=rq_name,
