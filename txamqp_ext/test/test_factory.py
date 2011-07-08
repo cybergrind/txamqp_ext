@@ -216,6 +216,7 @@ class FactoryD(TestCase):
             print 'GOT RESULT: %r'%result
             d1.callback(True)
         def _push_msg():
+            print 'PUSH MESSAGE'
             d = self.f.push_message('test')
             d.addCallback(_get_result)
         reactor.callLater(0.05, _push_msg)
@@ -273,7 +274,6 @@ class FactoryE(FactoryD):
 class FactoryF(FactoryD):
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
-                  'parallel': False,
                   'exchange': EXC,
                   'full_content': True,
                   'delivery_mode': 1,

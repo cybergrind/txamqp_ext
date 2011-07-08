@@ -9,6 +9,7 @@ from twisted.internet import protocol
 from twisted.internet.defer import Deferred
 from twisted.internet.defer import DeferredList
 from twisted.internet.defer import DeferredQueue
+from twisted.internet.defer import maybeDeferred
 
 import txamqp
 from txamqp.client import TwistedDelegate
@@ -264,17 +265,23 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 msg_out = msg.content.body
             else:
                 msg_out = msg.content
+
+            def _check_ack(*any):
+                if not self.push_back and not self.no_ack:
+                    self.log.debug('Ack message')
+                    self.client.read_chan.basic_ack(msg.delivery_tag,
+                                                    multiple=False)
+            def _errr(failure):
+                self.log.info('No ack message: %r'%failure.getTraceback())
+                raise failure
             if callable(self.rq_callback):
                 if not self.push_back:
-                    self.rq_callback(msg_out)
+                    maybeDeferred(self.rq_callback, msg_out).addCallbacks(_check_ack, _errr)
                     if not self.parallel and not self._stopping:
                         reactor.callLater(0, self.read_message_loop)
                 else:
                     d = self.wrap_back(msg)
-                    self.rq_callback(msg_out, d)
-            if not self.push_back and not self.no_ack:
-                self.client.read_chan.basic_ack(msg.delivery_tag,
-                                                multiple=False)
+                    maybeDeferred(self.rq_callback, msg_out, d).addCallbacks(_check_ack, _errr)
         msg.addCallback(_get_msg)
 
     def shutdown_factory(self):

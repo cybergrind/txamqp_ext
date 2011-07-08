@@ -6,6 +6,7 @@ from zope.interface import implements
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.defer import DeferredList
+from twisted.internet.defer import succeed
 
 import txamqp
 from txamqp.client import TwistedDelegate
@@ -37,6 +38,7 @@ class AmqpProtocol(AMQClient):
         # read loop call
         self._rloop_call = None
         self.read_queue = None
+        self.read_chan = None
         # failure traps
         AMQClient.__init__(self, *args, **kwargs)
 
@@ -334,14 +336,17 @@ class AmqpProtocol(AMQClient):
             if not self.write_chan.closed:
                 dl.append(self.write_chan.channel_close()\
                           .addErrback(self._error))
-            if not self.read_chan.closed:
+            if self.read_chan and not self.read_chan.closed:
                 dl.append(self.read_chan.channel_close()\
                           .addErrback(self._error))
             return DeferredList(dl)
         def _unsubscribe_read_queue(_none):
-            d = self.read_chan.basic_cancel(self.factory.consumer_tag)
-            d.addErrback(self._error)
-            return d
+            if self.read_chan:
+                d = self.read_chan.basic_cancel(self.factory.consumer_tag)
+                d.addErrback(self._error)
+                return d
+            else:
+                return succeed(lambda x: x)
         d = _unsubscribe_read_queue(None)
         d.addCallback(_close_channels)
         d.addCallback(_close_connection)
