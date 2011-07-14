@@ -1,4 +1,5 @@
 
+import os
 import logging
 import time
 import cPickle
@@ -126,9 +127,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if queue_name:
             self.rq_name = queue_name
         else:
-            self.rq_name = '%s_%s_%s_read_queue'%(
+            self.rq_name = '%s_%s_%s_%s_read_queue'%(
                 self.parent.__class__.__name__,
                 time.time(),
+                os.getpid(),
                 hex(hash(self.parent))[-4:])
         if routing_key:
             self.rq_rk = routing_key
