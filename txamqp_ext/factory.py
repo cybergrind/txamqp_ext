@@ -273,14 +273,14 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     self.log.debug('Ack message')
                     self.client.read_chan.basic_ack(msg.delivery_tag,
                                                     multiple=False)
+                if not self.parallel and not self._stopping:
+                        reactor.callLater(0, self.read_message_loop)
             def _errr(failure):
                 self.log.info('No ack message: %r'%failure.getTraceback())
                 raise failure
             if callable(self.rq_callback):
                 if not self.push_back:
                     maybeDeferred(self.rq_callback, msg_out).addCallbacks(_check_ack, _errr)
-                    if not self.parallel and not self._stopping:
-                        reactor.callLater(0, self.read_message_loop)
                 else:
                     d = self.wrap_back(msg)
                     maybeDeferred(self.rq_callback, msg_out, d).addCallbacks(_check_ack, _errr)
