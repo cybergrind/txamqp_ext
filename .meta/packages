@@ -1,0 +1,10 @@
+Twisted==10.2.0pre-wg.1
+python-memcached==1.47
+txAMQP==0.4
+teamcity-messages
+python-subunit
+zope.interface==3.6.4
+testtools>=0.9.11
+TeamcityTools-0.1
+pylint
+python-cjson

@@ -22,7 +22,12 @@ class FactoryA(TestCase):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False}
         self.f = AmqpReconnectingFactory(self, **kwargs)
-
+        self.f.declare([{'type':'exchange',
+                                'kwargs': {'exchange': EXC,
+                                           'durable': True,
+                                           'type': 'topic'}},
+                               ])
+        
     def test_001_basic_connect(self):
         return self.f.connected
 
