@@ -108,8 +108,6 @@ case $1 in
     agent_test_run)
         echo "Build number: $BUILD_NUMBER \n Rev: $BUILD_VCS_NUMBER" > .meta/revision
 
-	init_database
-
 	#checking for first run and create infra
 	if [ ! -d $VENV_PATH ]; then
 	    install_env
