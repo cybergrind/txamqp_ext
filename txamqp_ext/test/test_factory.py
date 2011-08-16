@@ -140,7 +140,7 @@ class FactoryC(TestCase):
                                      durable=False,
                                      auto_delete=True,
                                      exclusive=True)
-        return self.f.connected
+        return DeferredList([self.f.connected, self.f2.connected])
 
     def _test_echoer(self, msg):
         c = Content(msg.body)
@@ -274,7 +274,7 @@ class FactoryE(FactoryD):
                                      durable=False,
                                      auto_delete=True,
                                      exclusive=True)
-        return self.f.connected
+        return DeferredList([self.f.connected, self.f2.connected])
 
 class FactoryF(FactoryD):
     def setUp(self):
