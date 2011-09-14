@@ -113,7 +113,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 return _declare(items).addCallbacks(_declared, self._error)
         r = self.connected.addCallback(_connected)
         return self.connected
-        
+
 
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
@@ -180,7 +180,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         protocol.ReconnectingClientFactory\
                 .clientConnectionLost(self, connector, reason)
 
-    def encode_message(self, msg):
+    def encode_message(self, msg, skip_encoding=False):
         '''
         default method for encode amqp message body
         '''
@@ -188,9 +188,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg_body = msg.body
         else:
             msg_body = msg
-        if self.serialization == 'cjson':
+        if self.serialization == 'cjson' and not skip_encoding:
             encoded = cjson.encode(msg_body)
-        elif self.serialization == 'cPickle':
+        elif self.serialization == 'cPickle' and not skip_encoding:
             encoded = cPickle.dumps(msg_body)
         else:
             encoded = str(msg_body)
@@ -207,20 +207,22 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
           @tx <bool> send message in transaction
           @callback <deferred> callback that will called after sending
         '''
-
-        if 'callback' in kwargs:
-            callback = kwargs['callback']
-        else:
-            callback = Deferred()
-        msg = self.encode_message(msg)
-        msg_dict = {'exchange': exchange,
-                    'rk': routing_key,
-                    'content': msg,
-                    'callback': callback
-                   }
-        msg_dict.update(kwargs)
-        self.send_queue.put(msg_dict)
-        return callback
+        def _sending():
+            if 'callback' in kwargs:
+                callback = kwargs['callback']
+            else:
+                callback = Deferred()
+            skip_encoding = kwargs.get('skip_encoding', False)
+            msg_send = self.encode_message(msg, skip_encoding)
+            msg_dict = {'exchange': exchange,
+                        'rk': routing_key,
+                        'content': msg_send,
+                        'callback': callback
+                        }
+            msg_dict.update(kwargs)
+            self.send_queue.put(msg_dict)
+        ret = maybeDeferred(_sending)
+        return ret
 
     def wrap_back(self, msg):
         '''
