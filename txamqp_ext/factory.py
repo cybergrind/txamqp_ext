@@ -118,7 +118,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
                          durable=False, auto_delete=True,
-                         no_ack=True):
+                         no_ack=True, requeue_on_error=True,
+                         read_error_handler=None):
         '''
         if you need read queue support, you should call this method
         '''
@@ -142,6 +143,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.rq_auto_delete = auto_delete
         self.no_ack = no_ack
         self.rq_callback = callback
+        self.requeue_on_error = requeue_on_error
+        self.read_error_handler = read_error_handler
         if not self.consumer_tag:
             self.consumer_tag = self.rq_name
         def _add_cb(_none):
@@ -280,8 +283,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             def _errr(failure):
                 self.log.info('No ack message: %r'%failure.getTraceback())
                 self.client.read_chan.basic_reject(msg.delivery_tag,
-                                                   requeue=True)
-                raise failure
+                                                   requeue=self.requeue_on_error)
+                if not self.read_error_handler:
+                    raise failure
+                else:
+                    self.read_error_handler(failure)
             if callable(self.rq_callback):
                 if not self.push_back:
                     maybeDeferred(self.rq_callback, msg_out).addCallbacks(_check_ack, _errr)
