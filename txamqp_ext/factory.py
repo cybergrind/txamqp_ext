@@ -283,12 +283,13 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 if not self.parallel and not self._stopping:
                         reactor.callLater(0, self.read_message_loop)
             def _errr(failure):
-                self.log.info('No ack message: %r'%failure.getTraceback())
                 if not self.read_error_handler:
                     reactor.callLater(self.requeue_timeout,
                                   self.client.read_chan.basic_reject,
                                   msg.delivery_tag,
                                   requeue=self.requeue_on_error)
+                    self.log.info('No ack message: %r'%failure.getTraceback())
+                    self.log.info('Stop consuming')
                     raise failure
                 else:
                     err_resp = self.read_error_handler(failure, msg)
@@ -304,9 +305,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                       self.client.read_chan.basic_reject,
                                       msg.delivery_tag,
                                       requeue=requeue_on_error)
-                    if not self.parallel and not self._stopping\
-                           and read_new_message:
-                        reactor.callLater(0, self.read_message_loop)
+                    if not self.parallel and not self._stopping:
+                           if read_new_message:
+                               reactor.callLater(0, self.read_message_loop)
+                           else:
+                               self.log.warning('Stop consuming')
             if callable(self.rq_callback):
                 if not self.push_back:
                     maybeDeferred(self.rq_callback, msg_out).addCallbacks(_check_ack, _errr)
