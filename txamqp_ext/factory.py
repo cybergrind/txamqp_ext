@@ -279,6 +279,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         reactor.callLater(0, self.read_message_loop)
             def _errr(failure):
                 self.log.info('No ack message: %r'%failure.getTraceback())
+                self.client.read_chan.basic_reject(msg.delivery_tag,
+                                                   requeue=True)
                 raise failure
             if callable(self.rq_callback):
                 if not self.push_back:
