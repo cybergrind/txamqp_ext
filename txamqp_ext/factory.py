@@ -298,6 +298,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                                     self.requeue_on_error)
                     read_new_message = err_resp.get('read_new_message',
                                                     True)
+                    if not requeue_on_error:
+                        self.log.debug('Drop message')
                     reactor.callLater(requeue_timeout,
                                       self.client.read_chan.basic_reject,
                                       msg.delivery_tag,
