@@ -291,7 +291,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                   requeue=self.requeue_on_error)
                     raise failure
                 else:
-                    err_resp = self.read_error_handler(failure)
+                    err_resp = self.read_error_handler(failure, msg)
                     requeue_timeout = err_resp.get('requeue_timeout',
                                                    self.requeue_timeout)
                     requeue_on_error = err_resp.get('requeue_on_error',
