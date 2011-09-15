@@ -292,7 +292,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     self.log.info('Stop consuming')
                     raise failure
                 else:
-                    err_resp = self.read_error_handler(failure, msg)
+                    try:
+                        err_resp = self.read_error_handler(failure, msg)
+                    except Exception, mess:
+                        self.log.error('During run read_error_handler: ')
+                        raise Exception(mess)
                     requeue_timeout = err_resp.get('requeue_timeout',
                                                    self.requeue_timeout)
                     requeue_on_error = err_resp.get('requeue_on_error',
