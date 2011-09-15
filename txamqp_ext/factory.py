@@ -295,7 +295,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     try:
                         err_resp = self.read_error_handler(failure, msg)
                     except Exception, mess:
-                        self.log.error('During run read_error_handler: ')
+                        self.log.exception('During run read_error_handler: ')
                         raise Exception(mess)
                     requeue_timeout = err_resp.get('requeue_timeout',
                                                    self.requeue_timeout)
