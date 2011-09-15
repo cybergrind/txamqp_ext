@@ -288,6 +288,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     raise failure
                 else:
                     self.read_error_handler(failure)
+                    if not self.parallel and not self._stopping:
+                        reactor.callLater(0, self.read_message_loop)
             if callable(self.rq_callback):
                 if not self.push_back:
                     maybeDeferred(self.rq_callback, msg_out).addCallbacks(_check_ack, _errr)
