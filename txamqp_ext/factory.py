@@ -119,6 +119,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                          queue_name=None, exclusive=False,
                          durable=False, auto_delete=True,
                          no_ack=True, requeue_on_error=True,
+                         requeue_timeout=120,
                          read_error_handler=None):
         '''
         if you need read queue support, you should call this method
@@ -144,6 +145,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.no_ack = no_ack
         self.rq_callback = callback
         self.requeue_on_error = requeue_on_error
+        self.requeue_timeout = requeue_timeout
         self.read_error_handler = read_error_handler
         if not self.consumer_tag:
             self.consumer_tag = self.rq_name
@@ -282,8 +284,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         reactor.callLater(0, self.read_message_loop)
             def _errr(failure):
                 self.log.info('No ack message: %r'%failure.getTraceback())
-                self.client.read_chan.basic_reject(msg.delivery_tag,
-                                                   requeue=self.requeue_on_error)
+                reactor.callLater(self.requeue_timeout,
+                                  self.client.read_chan.basic_reject,
+                                  msg.delivery_tag,
+                                  requeue=self.requeue_on_error)
                 if not self.read_error_handler:
                     raise failure
                 else:
