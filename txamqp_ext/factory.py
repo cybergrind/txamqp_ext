@@ -284,15 +284,26 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         reactor.callLater(0, self.read_message_loop)
             def _errr(failure):
                 self.log.info('No ack message: %r'%failure.getTraceback())
-                reactor.callLater(self.requeue_timeout,
+                if not self.read_error_handler:
+                    reactor.callLater(self.requeue_timeout,
                                   self.client.read_chan.basic_reject,
                                   msg.delivery_tag,
                                   requeue=self.requeue_on_error)
-                if not self.read_error_handler:
                     raise failure
                 else:
-                    self.read_error_handler(failure)
-                    if not self.parallel and not self._stopping:
+                    err_resp = self.read_error_handler(failure)
+                    requeue_timeout = err_resp.get('requeue_timeout',
+                                                   self.requeue_timeout)
+                    requeue_on_error = err_resp.get('requeue_on_error',
+                                                    self.requeue_on_error)
+                    read_new_message = err_resp.get('read_new_message',
+                                                    True)
+                    reactor.callLater(requeue_timeout,
+                                      self.client.read_chan.basic_reject,
+                                      msg.delivery_tag,
+                                      requeue=requeue_on_error)
+                    if not self.parallel and not self._stopping\
+                           and read_new_message:
                         reactor.callLater(0, self.read_message_loop)
             if callable(self.rq_callback):
                 if not self.push_back:
