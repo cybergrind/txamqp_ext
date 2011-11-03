@@ -39,6 +39,7 @@ class AmqpProtocol(AMQClient):
         self._rloop_call = None
         self.read_queue = None
         self.read_chan = None
+        kwargs['heartbeat'] = 2
         # failure traps
         AMQClient.__init__(self, *args, **kwargs)
 
