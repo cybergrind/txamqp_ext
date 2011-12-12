@@ -169,7 +169,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.init_deferreds()
 
         print 'fail: %r'%reason
-        self.log.error('Connection failed: %r'%reason)
+        self.log.error('Connection failed: %r [%s@%s:%s%s]'%(reason,
+                                                             self.user,
+                                                             self.host,
+                                                             self.port,
+                                                             self.vhost))
         protocol.ReconnectingClientFactory\
                 .clientConnectionFailed(self, connector, reason)
 
