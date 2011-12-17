@@ -185,7 +185,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
         if not self._stopping:
             print 'lost: %r'%reason
-            self.log.error('Connection lost: %r'%reason)
+            self.log.error('Connection lost: %r [%s@%s:%s%s]'%(reason,
+                                                               self.user,
+                                                               self.host,
+                                                               self.port,
+                                                               self.vhost))
         protocol.ReconnectingClientFactory\
                 .clientConnectionLost(self, connector, reason)
 
