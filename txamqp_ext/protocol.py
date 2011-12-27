@@ -151,7 +151,7 @@ class AmqpProtocol(AMQClient):
                 print '!!!!!!!!! DROP MESSAGE: %r'%msg
                 self.log.error('Drop message: %r'%msg)
                 self.factory.dropped_send_messages.put(msg)
-                self.factory.sending_message = None
+                self.factory.processing_send = None
                 self.factory.send_retries = 0
                 msg = self.factory.send_queue.get()
                 msg.addCallback(self.process_message)
@@ -257,7 +257,7 @@ class AmqpProtocol(AMQClient):
 
         def _set_queue(queue):
             self.read_queue = queue
-            if self.factory.rq_enabled:
+            if not self.factory.connected.called and self.factory.rq_enabled:
                 self.factory.connected.callback(self)
             self._read_loop_started.callback(True)
             reactor.callLater(0, self.read_loop)

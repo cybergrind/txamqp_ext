@@ -40,13 +40,25 @@ class TestEncoding(TestCase):
     def test_002_skip_encoding(self):
         d = Deferred()
         d1 = Deferred()
+        d2 = Deferred()
 
         def _ok(_any):
             d.callback(True)
 
+        def _ok_msg(_any):
+            pass
+        def _err_msg(_any, msg):
+            d2.callback(True)
+
+        self.f.setup_read_queue(EXC, RK, _ok_msg,
+                                queue_name=QUE, durable=True,
+                                auto_delete=False,
+                                requeue_on_error=False,
+                                read_error_handler=_err_msg)
         self.f.send_message(EXC, RK, {1: self}, callback=d1,
                             skip_encoding=True).addCallback(_ok)
-        return d
+
+        return DeferredList([d, d2])
 
     def tearDown(self):
         return self.f.shutdown_factory()

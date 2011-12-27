@@ -154,7 +154,12 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             ret.addCallback(self.read_message_loop)
             ret.addErrback(self._error)
             return ret
-        c = self.connected
+        if not self.connected.called:
+            c = self.connected
+        else:
+            c = Deferred()
+            c.callback(True)
+            self.client.start_read_loop()
         c.addCallbacks(_add_cb, self._error)
         return c
 
@@ -331,6 +336,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     d = self.wrap_back(msg)
                     maybeDeferred(self.rq_callback, msg_out, d).addCallbacks(_check_ack, _errr)
         msg.addCallback(_get_msg)
+        if self.read_error_handler:
+            msg.addErrback(self.read_error_handler, msg)
 
     def shutdown_factory(self):
         '''
