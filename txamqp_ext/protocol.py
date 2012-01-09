@@ -14,7 +14,7 @@ from txamqp.protocol import AMQClient
 from txamqp.content import Content
 import txamqp.spec
 
-from txamqp_ext.interfaces import IAmqpProtocol
+from txamqp_ext.interfaces import IAmqpProtocol, IAmqpSend
 
 
 class AmqpProtocol(AMQClient):
@@ -146,10 +146,13 @@ class AmqpProtocol(AMQClient):
         # check for messages waiting sending
         if self.factory.processing_send:
             msg = self.factory.processing_send
+            self.log.debug('Resend message: %r'%msg)
             self.factory.send_retries += 1
             if self.factory.send_retries > self.factory.max_send_retries:
                 print '!!!!!!!!! DROP MESSAGE: %r'%msg
-                self.log.error('Drop message: %r'%msg)
+                self.log.error('Drop message: %r [Retr: %s Max: %s]'%(msg,
+                                                                      self.factory.send_retries,
+                                                                      self.factory.max_send_retries))
                 self.factory.dropped_send_messages.put(msg)
                 self.factory.processing_send = None
                 self.factory.send_retries = 0
@@ -354,6 +357,21 @@ class AmqpProtocol(AMQClient):
         d.addCallback(_close_connection)
         d.addErrback(self._error)
         return d
+
+
+class AmqpSequentialSend(object):
+    implements(IAmqpSend)
+    def __init__(self, send_chan, send_queue):
+        self.send_chan = send_chan
+        self.send_queue = send_queue
+        self.current_message = None
+
+class AmqpParallelSend(object):
+    implements(IAmqpSend)
+    def __init__(self, send_chan, send_queue):
+        self.send_chan = send_chan
+        self.send_queue = send_queue
+
 
 
 if __name__ == '__main__':

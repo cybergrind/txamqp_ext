@@ -73,6 +73,26 @@ class IAmqpSynFactory(IAmqpFactory):
     Implements synchronous message sending
     '''
 
+class IAmqpSend(Interface):
+    '''
+    support sending
+    '''
+    def __init__(self, send_chan, send_queue):
+        pass
+
+    def send_message(self, msg):
+        pass
+
+class IAmqpReceive(Interface):
+    '''
+    support receiving
+    TODO: valid time checking
+    '''
+    def __init__(self, read_chan, receive_queue):
+        pass
+    
+    
+
     
 
     
