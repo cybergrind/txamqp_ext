@@ -213,6 +213,7 @@ class AmqpProtocol(AMQClient):
                 cb.callback(res)
             #print 'SEND NONE %r'%res
             self.factory.processing_send = None
+            self.factory.send_retries = 0
             # if we have non-parallel factory
             # we should run next message only after
             # previous has been processed
