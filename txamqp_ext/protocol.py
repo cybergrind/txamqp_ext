@@ -343,17 +343,19 @@ class AmqpProtocol(AMQClient):
                           .addErrback(self._error))
             return DeferredList(dl)
         def _unsubscribe_read_queue(_none):
+            print dir(self.transport)
             if self.read_chan:
                 d = self.read_chan.basic_cancel(self.factory.consumer_tag)
                 d.addErrback(self._error)
                 return d
             else:
                 return succeed(lambda x: x)
-        d = _unsubscribe_read_queue(None)
-        d.addCallback(_close_channels)
-        d.addCallback(_close_connection)
-        d.addErrback(self._error)
-        return d
+        if self.transport.connected:
+            d = _unsubscribe_read_queue(None)
+            d.addCallback(_close_channels)
+            d.addCallback(_close_connection)
+            d.addErrback(self._error)
+            return d
 
 
 if __name__ == '__main__':

@@ -179,6 +179,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                                              self.host,
                                                              self.port,
                                                              self.vhost))
+        if self.client:
+            self.client.shutdown_protocol()
+            self.client = None
         protocol.ReconnectingClientFactory\
                 .clientConnectionFailed(self, connector, reason)
 
@@ -195,6 +198,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                                                self.host,
                                                                self.port,
                                                                self.vhost))
+        if self.client:
+            self.client.shutdown_protocol()
+            self.client = None
         protocol.ReconnectingClientFactory\
                 .clientConnectionLost(self, connector, reason)
 
@@ -347,7 +353,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if self._read_dc and not self._read_dc.called:
             self._read_dc.cancel()
         self.stopTrying()
-        return self.client.shutdown_protocol()
+        if self.client:
+            return self.client.shutdown_protocol()
 
 class TimeoutException(Exception):
     pass
