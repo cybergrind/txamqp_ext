@@ -23,6 +23,7 @@ class AmqpProtocol(AMQClient):
 
     def __init__(self, *args, **kwargs):
         print 'init protocol'
+        self._stop = False
         # callback on authenticated
         self._auth_succ = Deferred()
         # callback on read_channel opened
@@ -178,7 +179,7 @@ class AmqpProtocol(AMQClient):
         }
         '''
         # run one more task, if we have parallel factory
-        if self.factory.parallel:
+        if self.factory.parallel and not self._stop:
             reactor.callLater(0, self.send_loop)
 
         self.factory.processing_send = msg
@@ -217,7 +218,7 @@ class AmqpProtocol(AMQClient):
             # if we have non-parallel factory
             # we should run next message only after
             # previous has been processed
-            if not self.factory.parallel:
+            if not self.factory.parallel and not self._stop:
                 reactor.callLater(0, self.send_loop)
 
         def _commit_tx(res):
@@ -323,6 +324,7 @@ class AmqpProtocol(AMQClient):
         * close connection on channel0
         * lose transport connection
         '''
+        self._stop = True
         def _lose_connection(_none):
             self.transport.loseConnection()
         def _close_connection(_none):
