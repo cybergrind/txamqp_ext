@@ -190,7 +190,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         amqp errors cause connectionLost
         '''
         self.init_deferreds()
-
         if not self._stopping:
             print 'lost: %r'%reason
             self.log.error('Connection lost: %r [%s@%s:%s%s]'%(reason,
@@ -245,6 +244,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         }
             msg_dict.update(kwargs)
             self.send_queue.put(msg_dict)
+            return callback
         ret = maybeDeferred(_sending)
         return ret
 
@@ -354,6 +354,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             self._read_dc.cancel()
         self.stopTrying()
         if self.client:
+            self.log.debug('Going shutdown protocol')
             return self.client.shutdown_protocol()
 
 class TimeoutException(Exception):

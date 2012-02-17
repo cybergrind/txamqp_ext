@@ -60,7 +60,7 @@ class AmqpProtocol(AMQClient):
         # set that we are not connected
         # since we should authenticate and open channels
         self.connected = False
-        print 'go authentication'
+        print 'go authentication %r %r'%(self.factory.user, self.factory.password)
         d = self.authenticate(self.factory.user, self.factory.password)
         d.addCallback(self._authenticated)
         d.addErrback(self._error)
@@ -324,7 +324,13 @@ class AmqpProtocol(AMQClient):
         * close connection on channel0
         * lose transport connection
         '''
+        self.log.debug('Shutdown protocol')
         self._stop = True
+        if self.heartbeatInterval > 0:
+            if self.sendHB.running:
+                self.sendHB.stop()
+            if self.checkHB.active():
+                self.checkHB.cancel()
         def _lose_connection(_none):
             self.transport.loseConnection()
         def _close_connection(_none):
