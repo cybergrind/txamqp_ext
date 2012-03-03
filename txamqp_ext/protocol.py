@@ -256,18 +256,21 @@ class AmqpProtocol(AMQClient):
         q_auto_delete = self.factory.rq_auto_delete
         no_ack = self.factory.no_ack
         tag = self.factory.consumer_tag
+        self.log.debug('Start read loop %r'%[exc, q_name, q_rk])
 
         def _set_queue(queue):
             self.read_queue = queue
             if not self.factory.connected.called and self.factory.rq_enabled:
                 self.factory.connected.callback(self)
             self._read_loop_started.callback(True)
+            self.log.debug('Start read loop')
             reactor.callLater(0, self.read_loop)
 
         def _consume_started(res):
             return self.queue(tag).addCallback(_set_queue)
 
         def _queue_binded(res):
+            self.log.debug('Queue binded start consume')
             d = self.read_chan.basic_consume(queue=q_name,
                                              no_ack=no_ack,
                                              consumer_tag=tag)
@@ -281,7 +284,7 @@ class AmqpProtocol(AMQClient):
             d.addCallback(_queue_binded)
             return d
         d = self.read_chan.queue_declare(queue=q_name,
-                                         durable=True,
+                                         durable=q_dur,
                                          exclusive=q_excl,
                                          auto_delete=q_auto_delete)
         d.addCallback(_queue_declared)
