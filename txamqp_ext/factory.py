@@ -55,6 +55,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.serialization = kwargs.get('serialization', 'cjson')
         # return deferred that will send reply
         self.push_back = kwargs.get('push_back', False)
+        self.prefetch_count = kwargs.get('prefetch_count', 50)
         # route back name
         self.rb_name = kwargs.get('rb_name', 'route_back')
         # traps for catch errors from protocol

@@ -29,6 +29,7 @@ class TestFactory(protocol.ClientFactory):
         self.err_fail = True
         self.send_queue = DeferredQueue()
         self.read_queue = DeferredQueue()
+        self.prefetch_count = 40
         self.processing_send = None
         self.parallel = True
         self.delivery_mode = 2

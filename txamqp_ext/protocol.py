@@ -278,6 +278,7 @@ class AmqpProtocol(AMQClient):
         def _queue_binded(res):
             print 'Start consume'
             self.log.debug('Queue binded start consume')
+            self.read_chan.basic_qos(prefetch_count=self.factory.prefetch_count)
             d = self.read_chan.basic_consume(queue=q_name,
                                              no_ack=no_ack,
                                              consumer_tag=tag)
