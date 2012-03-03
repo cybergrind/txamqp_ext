@@ -284,7 +284,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         msg = self.read_queue.get()
 
-        print 'GOT MSG: %r'%msg
         def _get_msg(msg):
             if self.parallel and not self._stopping:
                 dc = reactor.callLater(0, self.read_message_loop)
