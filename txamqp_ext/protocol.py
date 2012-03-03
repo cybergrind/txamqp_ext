@@ -42,6 +42,9 @@ class AmqpProtocol(AMQClient):
         self.read_chan = None
         kwargs['heartbeat'] = 2
         # failure traps
+        #self.log.warning('AUTO SHUTDOWN 15 sec')
+        #reactor.callLater(15, lambda _: self.shutdown_protocol(), (None,))
+        self.__messages = set()
         AMQClient.__init__(self, *args, **kwargs)
 
     def makeConnection(self, transport):
@@ -135,6 +138,7 @@ class AmqpProtocol(AMQClient):
             if trap(failure):
                 return
         print 'Failure protocol _error %r'%failure
+        self.log.error('_error: %s'%failure.getTraceback())
         print failure.getTraceback()
         raise failure
 
@@ -145,6 +149,7 @@ class AmqpProtocol(AMQClient):
         since we can fail
         '''
         # check for messages waiting sending
+        print 'Start send loop'
         if self.factory.processing_send:
             msg = self.factory.processing_send
             self.factory.send_retries += 1
@@ -225,7 +230,6 @@ class AmqpProtocol(AMQClient):
             return self.write_chan.tx_commit()
 
         def _send_message(res):
-            #print 'tx res: %r'%res
             w = self.write_chan.basic_publish(exchange=exc,
                                               routing_key=rk,
                                               content=content)
@@ -256,6 +260,7 @@ class AmqpProtocol(AMQClient):
         q_auto_delete = self.factory.rq_auto_delete
         no_ack = self.factory.no_ack
         tag = self.factory.consumer_tag
+        print 'Start read loop %r'%[exc, q_name, q_rk]
         self.log.debug('Start read loop %r'%[exc, q_name, q_rk])
 
         def _set_queue(queue):
@@ -263,6 +268,7 @@ class AmqpProtocol(AMQClient):
             if not self.factory.connected.called and self.factory.rq_enabled:
                 self.factory.connected.callback(self)
             self._read_loop_started.callback(True)
+            print 'Start read loop'
             self.log.debug('Start read loop')
             reactor.callLater(0, self.read_loop)
 
@@ -270,6 +276,7 @@ class AmqpProtocol(AMQClient):
             return self.queue(tag).addCallback(_set_queue)
 
         def _queue_binded(res):
+            print 'Start consume'
             self.log.debug('Queue binded start consume')
             d = self.read_chan.basic_consume(queue=q_name,
                                              no_ack=no_ack,
@@ -300,6 +307,8 @@ class AmqpProtocol(AMQClient):
         '''
         def _get_message(msg):
             #print 'get msg: %r'%msg
+            if not self.factory.no_ack:
+                self.__messages.add(msg)
             self.factory.read_queue.put(msg)
             self._rloop_call = reactor.callLater(0, self.read_loop)
         def _get_empty(failure):
@@ -315,6 +324,22 @@ class AmqpProtocol(AMQClient):
         d.addErrback(self._error)
         return d
 
+    def basic_ack(self, msg):
+        if msg in self.__messages and not self._stop:
+            #print 'BASIC ACK %s'%msg
+            self.__messages.remove(msg)
+            return self.read_chan.basic_ack(msg.delivery_tag, multiple=False)
+        print 'MSG NOT IN OUR ACK %s %s'%(msg, self.__messages)
+        print 'LEN OF READ QUEUE: %s'%len(self.factory.read_queue.pending)
+
+    def basic_reject(self, msg, requeue):
+        if msg in self.__messages and not self._stop:
+            #print 'BASIC REJECT %s'%msg
+            self.__messages.remove(msg)
+            return self.read_chan.basic_reject(msg.delivery_tag, requeue)
+        print 'MSG NOT IN OUR %s'%msg
+
+
 
     def on_read_loop_started(self):
         return self._read_loop_started
@@ -329,6 +354,8 @@ class AmqpProtocol(AMQClient):
         '''
         self.log.debug('Shutdown protocol')
         self._stop = True
+        if self.factory.read_queue and self.factory.read_queue.pending:
+            self.factory.read_queue.pending = []
         if self.heartbeatInterval > 0:
             if self.sendHB.running:
                 self.sendHB.stop()
@@ -337,8 +364,11 @@ class AmqpProtocol(AMQClient):
         def _lose_connection(_none):
             self.transport.loseConnection()
         def _close_connection(_none):
-            d = self.channels[0].connection_close()
-            d.addErrback(self._error)
+            if 0 in self.channels:
+                d = self.channels[0].connection_close()
+                d.addErrback(self._error)
+            else:
+                d = succeed(True)
             if self._rloop_call and not self._rloop_call.called:
                 self._rloop_call.cancel()
             return DeferredList([d]).addCallback(_lose_connection)
@@ -346,7 +376,7 @@ class AmqpProtocol(AMQClient):
             dl = []
             if self.read_queue:
                 self.read_queue.close()
-            if not self.write_chan.closed:
+            if hasattr(self, 'write_chan') and not self.write_chan.closed:
                 dl.append(self.write_chan.channel_close()\
                           .addErrback(self._error))
             if self.read_chan and not self.read_chan.closed:
@@ -354,18 +384,20 @@ class AmqpProtocol(AMQClient):
                           .addErrback(self._error))
             return DeferredList(dl)
         def _unsubscribe_read_queue(_none):
-            print dir(self.transport)
             if self.read_chan:
                 d = self.read_chan.basic_cancel(self.factory.consumer_tag)
                 d.addErrback(self._error)
                 return d
             else:
                 return succeed(lambda x: x)
+        def _ok_fail(failure):
+            return
         if self.transport.connected:
             d = _unsubscribe_read_queue(None)
             d.addCallback(_close_channels)
             d.addCallback(_close_connection)
             d.addErrback(self._error)
+            d.addErrback(_ok_fail)
             return d
 
 

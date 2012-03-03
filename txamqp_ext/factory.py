@@ -25,6 +25,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     log = logging.getLogger('AmqpReconnectingFactory')
 
     def __init__(self, parent, **kwargs):
+        #self.initialDelay = 15
+        #self.delay = 15
+        #self.jitter = 0.8
         self.parent = parent
         self.host = kwargs.get('host', 'localhost')
         self.port = kwargs.get('port', 5672)
@@ -62,6 +65,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.send_queue = DeferredQueue()
         self.dropped_send_messages = DeferredQueue()
         self.processing_send = None
+        self._read = set()
         self.send_retries = 0
         self.max_send_retries = 2
         self.client = None
@@ -164,6 +168,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         return c
 
     def buildProtocol(self, addr):
+        print 'BUILD PROTOCOL'
         p = self.protocol(self.delegate, self.vhost, self.spec)
         self.client = p
         self.client.factory = self
@@ -262,8 +267,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                    tid=tid)
             d1.addErrback(self._error)
             if not self.no_ack:
-                self.client.read_chan.basic_ack(msg.delivery_tag,
-                                                multiple=False)
+                self.client.basic_ack(msg)
             return d1
         def _read_new(_none):
             if not self.parallel and not self._stopping:
@@ -279,6 +283,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         default message read method
         '''
         msg = self.read_queue.get()
+
+        print 'GOT MSG: %r'%msg
         def _get_msg(msg):
             if self.parallel and not self._stopping:
                 dc = reactor.callLater(0, self.read_message_loop)
@@ -297,15 +303,14 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             def _check_ack(*any):
                 if not self.push_back and not self.no_ack:
                     self.log.debug('Ack message')
-                    self.client.read_chan.basic_ack(msg.delivery_tag,
-                                                    multiple=False)
+                    self.client.basic_ack(msg)
                 if not self.parallel and not self._stopping:
                         reactor.callLater(0, self.read_message_loop)
             def _errr(failure):
                 if not self.read_error_handler:
                     reactor.callLater(self.requeue_timeout,
-                                  self.client.read_chan.basic_reject,
-                                  msg.delivery_tag,
+                                  self.client.basic_reject,
+                                  msg,
                                   requeue=self.requeue_on_error)
                     self.log.info('No ack message: %r'%failure.getTraceback())
                     self.log.info('Stop consuming')
@@ -327,21 +332,34 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     else:
                         self.log.debug('Will requeue message in %s seconds'%requeue_timeout)
                     reactor.callLater(requeue_timeout,
-                                      self.client.read_chan.basic_reject,
-                                      msg.delivery_tag,
+                                      self.client.basic_reject,
+                                      msg,
                                       requeue=requeue_on_error)
                     if not self.parallel and not self._stopping:
                            if read_new_message:
                                reactor.callLater(0, self.read_message_loop)
                            else:
                                self.log.warning('Stop consuming')
+            def __remove_rd(_any, _def):
+                if _def in self._read:
+                    self._read.remove(_def)
+                return _any
+            def __remove_rd_err(failure, _def):
+                if _def in self._read:
+                    self._read.remove(_def)
+                raise failure
             if callable(self.rq_callback):
                 if not self.push_back:
-                    maybeDeferred(self.rq_callback, msg_out).addCallbacks(_check_ack, _errr)
+                    rd = maybeDeferred(self.rq_callback, msg_out)
+                    rd.addCallback(__remove_rd, rd)
+                    rd.addErrback(__remove_rd_err, rd)
+                    rd.addCallbacks(_check_ack, _errr)
+                    self._read.add(rd)
                 else:
                     d = self.wrap_back(msg)
                     maybeDeferred(self.rq_callback, msg_out, d).addCallbacks(_check_ack, _errr)
         msg.addCallback(_get_msg)
+        msg.addErrback(self._error)
         if self.read_error_handler:
             msg.addErrback(self.read_error_handler, msg)
 
@@ -349,6 +367,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         shutdown factory in correct way
         '''
+        print 'Shutdown factory'
+        self.log.debug('Shutdown factory')
         self._stopping = True
         if self._read_dc and not self._read_dc.called:
             self._read_dc.cancel()
