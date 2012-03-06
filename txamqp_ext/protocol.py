@@ -140,7 +140,8 @@ class AmqpProtocol(AMQClient):
         print 'Failure protocol _error %r'%failure
         self.log.error('_error: %s'%failure.getTraceback())
         print failure.getTraceback()
-        self.shutdown_protocol()
+        self.close(failure)
+        #self.shutdown_protocol()
         raise failure
 
     def send_loop(self, *args):
