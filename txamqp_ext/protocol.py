@@ -401,6 +401,9 @@ class AmqpProtocol(AMQClient):
             d.addErrback(self._error)
             d.addErrback(_ok_fail)
             return d
+        else:
+            self.log.warning('LOSE CONNECTION FAIL')
+            self.transport.loseConnection()
 
 
 if __name__ == '__main__':
