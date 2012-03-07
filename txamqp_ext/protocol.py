@@ -404,7 +404,13 @@ class AmqpProtocol(AMQClient):
             return d
         else:
             self.log.warning('LOSE CONNECTION FAIL')
-            self.transport.loseConnection()
+            try:
+                # we should unregister producer or connection will
+                # never be closed
+                self.transport.unregisterProducer()
+                self.transport.loseConnection()
+            except:
+                pass
 
 
 if __name__ == '__main__':
