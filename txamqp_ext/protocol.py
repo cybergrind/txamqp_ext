@@ -365,7 +365,9 @@ class AmqpProtocol(AMQClient):
             if self.checkHB.active():
                 self.checkHB.cancel()
         def _lose_connection(_none):
+            self.transport.unregisterProducer()
             self.transport.loseConnection()
+            self.transport.abortConnection()
         def _close_connection(_none):
             if 0 in self.channels:
                 d = self.channels[0].connection_close()
@@ -409,6 +411,7 @@ class AmqpProtocol(AMQClient):
                 # never be closed
                 self.transport.unregisterProducer()
                 self.transport.loseConnection()
+                self.transport.abortConnection()
             except:
                 pass
 
