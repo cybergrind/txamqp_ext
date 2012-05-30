@@ -62,6 +62,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self._traps = []
 
         self.rq_enabled = False
+        self.rq_dynamic = False
         self.read_queue = TimeoutDeferredQueue()
         self.send_queue = DeferredQueue()
         self.dropped_send_messages = DeferredQueue()
@@ -119,6 +120,12 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         r = self.connected.addCallback(_connected)
         return self.connected
 
+    def change_rq_name(self):
+        self.rq_name = '%s_%s_%s_%s_read_queue'%(
+                self.parent.__class__.__name__,
+                time.time(),
+                os.getpid(),
+                hex(hash(self.parent))[-4:])
 
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
@@ -134,11 +141,13 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if queue_name:
             self.rq_name = queue_name
         else:
-            self.rq_name = '%s_%s_%s_%s_read_queue'%(
-                self.parent.__class__.__name__,
-                time.time(),
-                os.getpid(),
-                hex(hash(self.parent))[-4:])
+            #self.rq_name = '%s_%s_%s_%s_read_queue'%(
+            #    self.parent.__class__.__name__,
+            #    time.time(),
+            #    os.getpid(),
+            #    hex(hash(self.parent))[-4:])
+            self.rq_dynamic = True
+            self.change_rq_name()
         if routing_key:
             self.rq_rk = routing_key
         else:
