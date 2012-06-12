@@ -126,6 +126,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 time.time(),
                 os.getpid(),
                 hex(hash(self.parent))[-4:])
+        self.rq_rk = 'route_back.%s.%s'%(self.parent.__class__.__name__,
+                                         time.time())
 
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
@@ -141,11 +143,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if queue_name:
             self.rq_name = queue_name
         else:
-            #self.rq_name = '%s_%s_%s_%s_read_queue'%(
-            #    self.parent.__class__.__name__,
-            #    time.time(),
-            #    os.getpid(),
-            #    hex(hash(self.parent))[-4:])
             self.rq_dynamic = True
             self.change_rq_name()
         if routing_key:

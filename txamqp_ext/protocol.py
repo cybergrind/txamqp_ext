@@ -408,6 +408,8 @@ class AmqpProtocol(AMQClient):
             return d
         else:
             self.log.warning('LOSE CONNECTION FAIL')
+            if self.factory.rq_dynamic:
+                self.factory.change_rq_name()
             try:
                 # we should unregister producer or connection will
                 # never be closed
