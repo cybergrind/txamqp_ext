@@ -128,7 +128,7 @@ class AmqpProtocol(AMQClient):
         print 'trap closed'
         return True
 
-    def _error(self, failure):
+    def _error(self, failure, send_requeue=None):
         '''
         all deferred should addErrback(self._error)
         so, all errors will fail here
@@ -139,8 +139,10 @@ class AmqpProtocol(AMQClient):
                 return
         print 'Failure protocol _error %r'%failure
         self.log.error('_error: %s'%failure.getTraceback())
+        if send_requeue and not send_requeue['callback'].called:
+            self.log.debug('requeue failed send message')
+            self.factory.put(send_requeue)
         print failure.getTraceback()
-        #self.close(failure)
         self.shutdown_protocol()
         raise failure
 
@@ -151,7 +153,6 @@ class AmqpProtocol(AMQClient):
         since we can fail
         '''
         # check for messages waiting sending
-        print 'Start send loop'
         if self.factory.processing_send:
             msg = self.factory.processing_send
             self.factory.send_retries += 1
@@ -163,7 +164,7 @@ class AmqpProtocol(AMQClient):
                 self.factory.send_retries = 0
                 msg = self.factory.send_queue.get()
                 msg.addCallback(self.process_message)
-                msg.addErrback(self._error)
+                msg.addErrback(self._error, send_requeue=msg)
             else:
                 self.process_message(msg)
         else:
@@ -219,7 +220,6 @@ class AmqpProtocol(AMQClient):
         def _after_send(res):
             if not cb.called:
                 cb.callback(res)
-            #print 'SEND NONE %r'%res
             self.factory.processing_send = None
             self.factory.send_retries = 0
             # if we have non-parallel factory
@@ -235,7 +235,6 @@ class AmqpProtocol(AMQClient):
             w = self.write_chan.basic_publish(exchange=exc,
                                               routing_key=rk,
                                               content=content)
-            #print 'send message %s'%content
             return w
         if (not self.factory.parallel) and (self.factory.tx_mode or msg_tx):
             d = self.write_chan.tx_select()
@@ -262,7 +261,6 @@ class AmqpProtocol(AMQClient):
         q_auto_delete = self.factory.rq_auto_delete
         no_ack = self.factory.no_ack
         tag = self.factory.consumer_tag
-        print 'Start read loop %r'%[exc, q_name, q_rk]
         self.log.debug('Start read loop %r'%[exc, q_name, q_rk])
 
         def _set_queue(queue):
@@ -270,7 +268,6 @@ class AmqpProtocol(AMQClient):
             if not self.factory.connected.called and self.factory.rq_enabled:
                 self.factory.connected.callback(self)
             self._read_loop_started.callback(True)
-            print 'Start read loop'
             self.log.debug('Start read loop')
             reactor.callLater(0, self.read_loop)
 
@@ -278,7 +275,6 @@ class AmqpProtocol(AMQClient):
             return self.queue(tag).addCallback(_set_queue)
 
         def _queue_binded(res):
-            print 'Start consume'
             self.log.debug('Queue binded start consume')
             self.read_chan.basic_qos(prefetch_count=self.factory.prefetch_count)
             d = self.read_chan.basic_consume(queue=q_name,
@@ -309,7 +305,6 @@ class AmqpProtocol(AMQClient):
         call read_loop again.
         '''
         def _get_message(msg):
-            #print 'get msg: %r'%msg
             if not self.factory.no_ack:
                 self.__messages.add(msg)
             self.factory.read_queue.put(msg)
@@ -329,7 +324,6 @@ class AmqpProtocol(AMQClient):
 
     def basic_ack(self, msg):
         if msg in self.__messages and not self._stop:
-            #print 'BASIC ACK %s'%msg
             self.__messages.remove(msg)
             return self.read_chan.basic_ack(msg.delivery_tag, multiple=False)
         print 'MSG NOT IN OUR ACK %s %s'%(msg, self.__messages)
@@ -337,10 +331,8 @@ class AmqpProtocol(AMQClient):
 
     def basic_reject(self, msg, requeue):
         if msg in self.__messages and not self._stop:
-            #print 'BASIC REJECT %s'%msg
             self.__messages.remove(msg)
             return self.read_chan.basic_reject(msg.delivery_tag, requeue)
-        print 'MSG NOT IN OUR %s'%msg
 
 
 

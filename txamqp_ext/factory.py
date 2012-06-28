@@ -70,6 +70,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self._read = set()
         self.send_retries = 0
         self.max_send_retries = 2
+        # timeout for send message
+        self.send_timeout = kwargs.get('send_timeout', 60)
         self.client = None
 
         # read delayed call. need for stop parallel read
@@ -242,6 +244,19 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
           @tx <bool> send message in transaction
           @callback <deferred> callback that will called after sending
         '''
+        def _check_send_timeout(cb):
+            # call if send was fail
+            if not cb.called:
+                self.log.info("Message sending timeout. Raise error")
+                cb.error(Exception('send_timeout'))
+        def _remove_timeout(res, d):
+            # remove timeout task
+            try:
+                if d.active():
+                    d.cancel()
+            except Exception, mess:
+                self.log.exception("Removing timeout cause error: %r"%mess)
+            return res
         def _sending():
             if 'callback' in kwargs:
                 callback = kwargs['callback']
@@ -255,6 +270,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         'callback': callback
                         }
             msg_dict.update(kwargs)
+            to = reactor.callLater(self.send_timeout, _check_send_timeout, callback)
+            callback.addCallback(_remove_timeout, to)
             self.send_queue.put(msg_dict)
             return callback
         ret = maybeDeferred(_sending)
