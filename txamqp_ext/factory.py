@@ -251,7 +251,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 cb.error(Exception('send_timeout'))
             else:
                 self.log.debug("Message cb is called: %r -> %r"%(cb, cb.called))
-        def _remove_timeout(d, res):
+        def _remove_timeout(res, d):
             # remove timeout task
             self.log.debug("Call remove timeout from %r res %r"%(res, d))
             try:
