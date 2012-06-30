@@ -273,6 +273,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         'callback': callback
                         }
             msg_dict.update(kwargs)
+            self.log.debug('Send msg: %r'%msg)
             to = reactor.callLater(self.send_timeout, _check_send_timeout, callback)
             callback.addCallback(_remove_timeout, to)
             self.send_queue.put(msg_dict)
