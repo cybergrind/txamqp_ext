@@ -40,7 +40,7 @@ class AmqpProtocol(AMQClient):
         self._rloop_call = None
         self.read_queue = None
         self.read_chan = None
-        kwargs['heartbeat'] = 2
+        kwargs['heartbeat'] = kwargs.get('heartbeat', 2)
         # failure traps
         #self.log.warning('AUTO SHUTDOWN 15 sec')
         #reactor.callLater(15, lambda _: self.shutdown_protocol(), (None,))
@@ -166,7 +166,8 @@ class AmqpProtocol(AMQClient):
                 msg.addCallback(self.process_message)
                 msg.addErrback(self._error, send_requeue=msg)
             else:
-                self.process_message(msg)
+                p = self.process_message(msg)
+                p.addErrback(self._error, send_requeue=msg)
         else:
             msg = self.factory.send_queue.get()
             msg.addCallback(self.process_message)
@@ -238,12 +239,12 @@ class AmqpProtocol(AMQClient):
             return w
         if (not self.factory.parallel) and (self.factory.tx_mode or msg_tx):
             d = self.write_chan.tx_select()
-            d.addCallbacks(_send_message, self._error)
-            d.addCallbacks(_commit_tx, self._error)
-            d.addCallbacks(_after_send, self._error)
+            d.addCallback(_send_message)
+            d.addCallback(_commit_tx)
+            d.addCallback(_after_send)
         else:
             d = _send_message(None)
-            d.addCallbacks(_after_send, self._error)
+            d.addCallback(_after_send)
         return d
 
     def on_read_channel_opened(self):
@@ -351,7 +352,7 @@ class AmqpProtocol(AMQClient):
         self._stop = True
         if self.factory.read_queue and self.factory.read_queue.pending:
             self.factory.read_queue.pending = []
-        if self.heartbeatInterval > 0:
+        if self.heartbeatInterval:
             if self.sendHB.running:
                 self.sendHB.stop()
             if self.checkHB.active():
@@ -389,6 +390,8 @@ class AmqpProtocol(AMQClient):
             else:
                 return succeed(lambda x: x)
         def _ok_fail(failure):
+            if self.transport.connected:
+                self.transport.loseConnection()
             return
         if self.transport.connected:
             d = _unsubscribe_read_queue(None)
