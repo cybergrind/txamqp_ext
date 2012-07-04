@@ -340,8 +340,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                   msg,
                                   requeue=self.requeue_on_error)
                     self.log.info('No ack message: %r'%failure.getTraceback())
-                    self.log.info('Stop consuming')
-                    raise failure
+                    read_new_message = True
+                    #self.log.info('Stop consuming')
+                    #raise failure
                 else:
                     try:
                         err_resp = self.read_error_handler(failure, msg)
@@ -362,11 +363,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                       self.client.basic_reject,
                                       msg,
                                       requeue=requeue_on_error)
-                    if not self.parallel and not self._stopping:
-                           if read_new_message:
-                               reactor.callLater(0, self.read_message_loop)
-                           else:
-                               self.log.warning('Stop consuming')
+                if not self.parallel and not self._stopping:
+                    if read_new_message:
+                        reactor.callLater(0, self.read_message_loop)
+                    else:
+                        self.log.warning('Stop consuming')
             def __remove_rd(_any, _def):
                 if _def in self._read:
                     self._read.remove(_def)
