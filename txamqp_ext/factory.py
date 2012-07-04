@@ -253,7 +253,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 self.log.debug("Message cb is called: %r -> %r"%(cb, cb.called))
         def _remove_timeout(res, d):
             # remove timeout task
-            self.log.debug("Call remove timeout from %r res %r"%(res, d))
+            # self.log.debug("Call remove timeout from %r res %r"%(res, d))
             try:
                 if d.active():
                     d.cancel()
@@ -273,7 +273,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         'callback': callback
                         }
             msg_dict.update(kwargs)
-            self.log.debug('Send msg: %r'%msg)
+            # self.log.debug('Send msg: %r'%msg)
             to = reactor.callLater(self.send_timeout, _check_send_timeout, callback)
             callback.addCallback(_remove_timeout, to)
             self.send_queue.put(msg_dict)
