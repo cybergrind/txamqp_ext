@@ -247,8 +247,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         def _check_send_timeout(cb):
             # call if send was fail
             if not cb.called:
-                self.log.info("Message sending timeout. Raise error")
-                cb.error(Exception('send_timeout'))
+                self.log.info("Message sending timeout. Raise error %r"%cb)
+                cb.errback(Exception('send_timeout'))
             else:
                 self.log.debug("Message cb is called: %r -> %r"%(cb, cb.called))
         def _remove_timeout(res, d):
