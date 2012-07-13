@@ -276,7 +276,7 @@ class AmqpProtocol(AMQClient):
             return self.queue(tag).addCallback(_set_queue)
 
         def _queue_binded(res):
-            self.log.debug('Queue binded start consume')
+            self.log.debug('Queue binded start consume %s => %s'%(q_name, q_rk))
             self.read_chan.basic_qos(prefetch_count=self.factory.prefetch_count)
             d = self.read_chan.basic_consume(queue=q_name,
                                              no_ack=no_ack,
@@ -381,8 +381,6 @@ class AmqpProtocol(AMQClient):
                           .addErrback(self._error))
             return DeferredList(dl)
         def _unsubscribe_read_queue(_none):
-            if self.factory.rq_dynamic:
-                self.factory.change_rq_name()
             if self.read_chan:
                 d = self.read_chan.basic_cancel(self.factory.consumer_tag)
                 d.addErrback(self._error)
@@ -402,8 +400,6 @@ class AmqpProtocol(AMQClient):
             return d
         else:
             self.log.warning('LOSE CONNECTION FAIL')
-            if self.factory.rq_dynamic:
-                self.factory.change_rq_name()
             try:
                 # we should unregister producer or connection will
                 # never be closed

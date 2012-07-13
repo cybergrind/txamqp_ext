@@ -191,6 +191,7 @@ class FactoryD(TestCase):
                   'parallel': False,
                   'exchange': EXC,
                   'full_content': True,
+                  'timeout': 1,
                   'delivery_mode': 1,
                   'rk': RK2 }
         kwargs2 = copy(kwargs)
@@ -240,6 +241,34 @@ class FactoryD(TestCase):
             d1.addCallback(_get_result)
             d1.addErrback(self._err)
         return DeferredList(d.values())
+
+    def test_04_reconnect(self):
+        d = Deferred()
+        def _sleep(n):
+            s = Deferred()
+            reactor.callLater(n, s.callback, True)
+            return s
+        def _get_result(result):
+            d.callback(True)
+        def _no_result(failure):
+            print '%s'%failure.getTraceback()
+            raise Exception('No result')
+        def _resend(failure):
+            d1 = self.f.push_message('test', timeout_sec=5)
+            d1.addCallbacks(_get_result, _no_result)
+        def sl(failure):
+            s = _sleep(3)
+            print 'Resend. %s'%failure.getTraceback()
+            s.addCallback(_resend)
+        def _ecb(*_any):
+            raise Exception('ERR: %r'%(_any))
+        def push_first():
+            d1 = self.f.push_message('test', timeout_sec=0.5)
+            d1.addCallback(_ecb)
+            d1.addErrback(sl)
+        self.f.client.shutdown_protocol()
+        push_first()
+        return d
 
     def _err(self, failure):
         raise failure

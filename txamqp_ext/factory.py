@@ -123,13 +123,14 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         return self.connected
 
     def change_rq_name(self):
-        self.rq_name = '%s_%s_%s_%s_read_queue'%(
-                self.parent.__class__.__name__,
-                time.time(),
-                os.getpid(),
-                hex(hash(self.parent))[-4:])
-        self.rq_rk = 'route_back.%s.%s'%(self.parent.__class__.__name__,
-                                         time.time())
+        self.rq_name = '%s_%r_%s_%s_read_queue'%(
+            self.parent.__class__.__name__,
+            time.time(),
+            os.getpid(),
+            hex(hash(self.parent))[-4:])
+        if self.rq_dynamic_route:
+            self.rq_rk = 'route_back.%s.%r'%(self.parent.__class__.__name__,
+                                             time.time())
 
     def setup_read_queue(self, exchange, routing_key=None, callback=None,
                          queue_name=None, exclusive=False,
@@ -142,16 +143,17 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         self.rq_enabled = True
         self.rq_exchange = exchange
+        if routing_key:
+            self.rq_rk = routing_key
+            self.rq_dynamic_route = False
+        else:
+            self.rq_dynamic_route = True
         if queue_name:
             self.rq_name = queue_name
         else:
             self.rq_dynamic = True
             self.change_rq_name()
-        if routing_key:
-            self.rq_rk = routing_key
-        else:
-            self.rq_rk = 'route_back.%s.%s'%(self.parent.__class__.__name__,
-                                             time.time())
+
         self.rq_exclusive = exclusive
         self.rq_durable = durable
         self.rq_auto_delete = auto_delete
@@ -214,6 +216,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if self.client:
             self.client.shutdown_protocol()
             self.client = None
+            if hasattr(self, 'rq_dynamic') and self.rq_dynamic:
+                self.change_rq_name()
         protocol.ReconnectingClientFactory\
                 .clientConnectionLost(self, connector, reason)
 
@@ -440,10 +444,10 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         d = Deferred()
         if kwargs.get('tid'):
             tid = kwargs['tid']
-        elif type(msg) == dict and msg.get('tid'):
-            tid = content[self.tid_name] = msg['tid']
         elif type(msg) == dict and  msg.get(self.tid_name):
             tid = msg[self.tid_name]
+        elif type(msg) == dict and msg.get('tid'):
+            tid = msg['tid']
         else:
             tid = str(int(time.time()*1e7))
         if 'rk' in kwargs:
