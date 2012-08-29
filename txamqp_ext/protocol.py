@@ -396,6 +396,7 @@ class AmqpProtocol(AMQClient):
             d.addCallback(_close_channels)
             d.addCallback(_close_connection)
             d.addErrback(self._error)
+            d.addErrback(_close_connection)
             d.addErrback(_ok_fail)
             return d
         else:

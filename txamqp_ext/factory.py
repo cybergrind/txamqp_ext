@@ -383,10 +383,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             if callable(self.rq_callback):
                 if not self.push_back:
                     rd = maybeDeferred(self.rq_callback, msg_out)
+                    self._read.add(rd)
                     rd.addCallback(__remove_rd, rd)
                     rd.addErrback(__remove_rd_err, rd)
                     rd.addCallbacks(_check_ack, _errr)
-                    self._read.add(rd)
                 else:
                     d = self.wrap_back(msg)
                     maybeDeferred(self.rq_callback, msg_out, d).addCallbacks(_check_ack, _errr)
