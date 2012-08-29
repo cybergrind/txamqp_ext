@@ -141,7 +141,7 @@ class AmqpProtocol(AMQClient):
         self.log.error('_error: %s'%failure.getTraceback())
         if send_requeue and not send_requeue['callback'].called:
             self.log.debug('requeue failed send message')
-            self.factory.put(send_requeue)
+            self.factory.send_queue.put(send_requeue)
         print failure.getTraceback()
         self.shutdown_protocol()
         raise failure
