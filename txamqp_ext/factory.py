@@ -434,7 +434,8 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         '''
         self.push_exchange = exchange
         self.push_rk = rk
-        self.default_timeout = timeout
+        if timeout:
+            self.default_timeout = timeout
         self.push_timeout_msg = timeout_msg
 
     def push_message(self, msg, timeout_sec=None, **kwargs):
