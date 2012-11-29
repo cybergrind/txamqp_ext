@@ -19,7 +19,7 @@ from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
 class FactoryA(TestCase):
     timeout = 10
     def setUp(self):
-        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
+        kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.extended.xml',
                   'parallel': False}
         self.f = AmqpReconnectingFactory(self, **kwargs)
         self.f.declare([{'type':'exchange',

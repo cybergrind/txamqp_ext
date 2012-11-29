@@ -33,7 +33,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.port = kwargs.get('port', 5672)
         self.user = kwargs.get('user', 'guest')
         self.password = kwargs.get('password', 'guest')
-        spec_file = kwargs.get('spec', 'file:./txamqp_ext/spec/amqp0-8.xml')
+        spec_file = kwargs.get('spec', 'file:txamqp_ext/spec/amqp0-9-1.extended.xml')
         self.spec = txamqp.spec.load(spec_file)
         self.vhost = kwargs.get('vhost', '/')
         self.delegate = TwistedDelegate()

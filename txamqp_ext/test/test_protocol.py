@@ -23,7 +23,8 @@ class TestFactory(protocol.ClientFactory):
         self.vhost = '/'
         self.port = 5672
         self.delegate = TwistedDelegate()
-        self.spec = txamqp.spec.load('file:../txamqp_ext/spec/amqp0-8.xml')
+        self.spec = txamqp.spec.load('file:../txamqp_ext/spec/amqp0-9-1.extended.xml')
+        print 'SPEC: %r'%self.spec
         self.connected = Deferred()
         self.connected.addErrback(self._err)
         self.err_fail = True
@@ -86,7 +87,7 @@ class ProtocolA(TestCase):
     '''
     Tests for connection
     '''
-    timeout = 30
+    timeout = 3
     def setUp(self):
         self.f = TestFactory()
         self.failError = True
