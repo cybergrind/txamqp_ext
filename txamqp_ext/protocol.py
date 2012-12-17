@@ -38,6 +38,7 @@ class AmqpProtocol(AMQClient):
         self.q_timeout = 1
         # read loop call
         self._rloop_call = None
+        self._sloop_call = None
         self.read_queue = None
         self.read_chan = None
         kwargs['heartbeat'] = kwargs.get('heartbeat', 2)
@@ -117,7 +118,8 @@ class AmqpProtocol(AMQClient):
                 self.factory.connected.callback(self)
             self.connected = True
             self._write_opened.callback(self.write_chan)
-            self.send_loop()
+            self._sloop_call = reactor.callLater(0, self.send_loop)
+            #self.send_loop()
         d = self.write_chan.channel_open()
         d.addCallback(_opened)
         d.addErrback(self._error)
@@ -145,6 +147,13 @@ class AmqpProtocol(AMQClient):
         print failure.getTraceback()
         self.shutdown_protocol()
         raise failure
+
+    def doClose(self, reason):
+        '''
+        override standart method
+        '''
+        self.log.warning('Close due %r'%reason)
+        AMQClient.doClose(self, reason)
 
     def send_loop(self, *args):
         '''
@@ -189,7 +198,7 @@ class AmqpProtocol(AMQClient):
         '''
         # run one more task, if we have parallel factory
         if self.factory.parallel and not self._stop:
-            reactor.callLater(0, self.send_loop)
+            self._sloop_call = reactor.callLater(0, self.send_loop)
 
         self.factory.processing_send = msg
         exc = msg.get('exchange')
@@ -227,7 +236,7 @@ class AmqpProtocol(AMQClient):
             # we should run next message only after
             # previous has been processed
             if not self.factory.parallel and not self._stop:
-                reactor.callLater(0, self.send_loop)
+                self._sloop_call = reactor.callLater(0, self.send_loop)
 
         def _commit_tx(res):
             return self.write_chan.tx_commit()
@@ -397,6 +406,9 @@ class AmqpProtocol(AMQClient):
             if self.transport.connected:
                 self.transport.loseConnection()
             return
+        if self._sloop_call and self._sloop_call.active():
+            self.log.debug('Stop send loop for protocol')
+            self._sloop_call.cancel()
         if self.transport.connected:
             d = _unsubscribe_read_queue(None)
             d.addCallback(_close_channels)
