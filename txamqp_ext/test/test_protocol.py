@@ -47,6 +47,8 @@ class TestFactory(protocol.ClientFactory):
         self.consumer_tag = 'test_tag'
         self.rb_name = 'route_back'
         self.rq_dynamic = False
+        self.autodeclare = True
+        self.autobind = True
 
         self.processing_send = None
         self.send_retries = 0

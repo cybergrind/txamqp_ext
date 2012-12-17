@@ -137,10 +137,13 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                          durable=False, auto_delete=True,
                          no_ack=True, requeue_on_error=True,
                          requeue_timeout=120,
-                         read_error_handler=None):
+                         read_error_handler=None,
+                         autodeclare=True, autobind=True):
         '''
         if you need read queue support, you should call this method
         '''
+        self.autodeclare = autodeclare
+        self.autobind = autobind
         self.rq_enabled = True
         self.rq_exchange = exchange
         if routing_key:

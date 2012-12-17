@@ -290,12 +290,18 @@ class AmqpProtocol(AMQClient):
                                           routing_key=q_rk)
             d.addCallback(_queue_binded)
             return d
-        d = self.read_chan.queue_declare(queue=q_name,
-                                         durable=q_dur,
-                                         exclusive=q_excl,
-                                         auto_delete=q_auto_delete)
-        d.addCallback(_queue_declared)
-        d.addErrback(self._error)
+        if self.factory.autodeclare:
+            d = self.read_chan.queue_declare(queue=q_name,
+                                             durable=q_dur,
+                                             exclusive=q_excl,
+                                             auto_delete=q_auto_delete)
+            if self.factory.autobind:
+                d.addCallback(_queue_declared)
+            d.addErrback(self._error)
+        elif self.factory.autobind:
+            d = _queue_declared(True)
+        else:
+            d = True
         return d
 
     def read_loop(self, *args):
