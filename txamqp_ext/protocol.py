@@ -301,7 +301,7 @@ class AmqpProtocol(AMQClient):
         elif self.factory.autobind:
             d = _queue_declared(True)
         else:
-            d = True
+            d = _queue_binded(True)
         return d
 
     def read_loop(self, *args):
