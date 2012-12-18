@@ -13,6 +13,7 @@ from twisted.internet.defer import DeferredQueue
 from twisted.internet.defer import maybeDeferred
 
 import txamqp
+import txamqp.spec
 from txamqp.client import TwistedDelegate
 from txamqp.content import Content
 from txamqp.queue import TimeoutDeferredQueue, Empty

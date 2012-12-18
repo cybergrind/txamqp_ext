@@ -9,10 +9,10 @@ from twisted.internet.defer import DeferredList
 from twisted.internet.defer import succeed
 
 import txamqp
+import txamqp.spec
 from txamqp.client import TwistedDelegate
 from txamqp.protocol import AMQClient
 from txamqp.content import Content
-import txamqp.spec
 
 from txamqp_ext.interfaces import IAmqpProtocol
 
@@ -197,6 +197,9 @@ class AmqpProtocol(AMQClient):
         }
         '''
         # run one more task, if we have parallel factory
+        if self._stop:
+            self.log.debug('Get message for inactive connection. requeue')
+            self.factory.send_queue.put(msg)
         if self.factory.parallel and not self._stop:
             self._sloop_call = reactor.callLater(0, self.send_loop)
 
@@ -363,7 +366,7 @@ class AmqpProtocol(AMQClient):
         * close connection on channel0
         * lose transport connection
         '''
-        self.log.debug('Shutdown protocol')
+        self.log.debug('Shutdown protocol %r'%hash(self))
         self._stop = True
         if self.factory.read_queue and self.factory.read_queue.pending:
             self.factory.read_queue.pending = []
@@ -406,9 +409,11 @@ class AmqpProtocol(AMQClient):
             if self.transport.connected:
                 self.transport.loseConnection()
             return
+
         if self._sloop_call and self._sloop_call.active():
             self.log.debug('Stop send loop for protocol')
             self._sloop_call.cancel()
+
         if self.transport.connected:
             d = _unsubscribe_read_queue(None)
             d.addCallback(_close_channels)
