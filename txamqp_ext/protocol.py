@@ -311,13 +311,13 @@ class AmqpProtocol(AMQClient):
             if self.factory.autobind:
                 self.log.debug('And autobind.')
                 d.addCallback(_queue_declared)
-            d.addErrback(self._error)
         elif self.factory.autobind:
             self.log.debug('Only autobind.')
             d = _queue_declared(True)
         else:
             self.log.debug('No autodeclare and no autobind.')
             d = _queue_binded(True)
+        d.addErrback(self._error)
         return d
 
     def read_loop(self, *args):
