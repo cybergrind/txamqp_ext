@@ -41,7 +41,7 @@ class AmqpProtocol(AMQClient):
         self._sloop_call = None
         self.read_queue = None
         self.read_chan = None
-        kwargs['heartbeat'] = kwargs.get('heartbeat', 2)
+        kwargs['heartbeat'] = kwargs.get('heartbeat', 10)
         # failure traps
         #self.log.warning('AUTO SHUTDOWN 15 sec')
         #reactor.callLater(15, lambda _: self.shutdown_protocol(), (None,))
@@ -307,12 +307,16 @@ class AmqpProtocol(AMQClient):
                                              durable=q_dur,
                                              exclusive=q_excl,
                                              auto_delete=q_auto_delete)
+            self.log.debug('Autodeclare.')
             if self.factory.autobind:
+                self.log.debug('And autobind.')
                 d.addCallback(_queue_declared)
             d.addErrback(self._error)
         elif self.factory.autobind:
+            self.log.debug('Only autobind.')
             d = _queue_declared(True)
         else:
+            self.log.debug('No autodeclare and no autobind.')
             d = _queue_binded(True)
         return d
 
