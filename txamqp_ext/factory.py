@@ -124,6 +124,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             else:
                 return _declare(items).addCallbacks(_declared, self._error)
         self.do_on_connect.append(_connected)
+        if self.connected.called:
+            self.connected.addCallback(_connected)
         return self.connected
 
     def change_rq_name(self):
@@ -177,6 +179,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             ret.addErrback(self._error)
             return ret
         self.do_on_connect.append(lambda x: _add_cb(x).addErrback(self._error))
+        if self.connected.called:
+            self.connected.addCallback(lambda x: _add_cb(x).addErrback(self._error))
+            self.client.start_read_loop()
         return self.connected
 
     def buildProtocol(self, addr):
