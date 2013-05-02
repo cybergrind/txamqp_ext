@@ -202,6 +202,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         if self.client:
             self.client.shutdown_protocol()
             self.client = None
+            if hasattr(self, 'rq_dynamic') and self.rq_dynamic:
+                self.change_rq_name()
         protocol.ReconnectingClientFactory\
                 .clientConnectionFailed(self, connector, reason)
 
