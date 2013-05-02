@@ -80,11 +80,14 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
         self._stopping = False
         self.init_deferreds()
+        self.do_on_connect = []
         reactor.connectTCP(self.host, self.port, self)
 
     def init_deferreds(self):
         self.connected = Deferred()
         self.connected.addErrback(self._error)
+        def _run_on_connect(protocol):
+            return DeferredList(map(lambda x: x(protocol), self.do_on_connect))
 
     def _error(self, failure):
         '''
@@ -120,7 +123,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 return DeferredList(d).addCallbacks(_declared, self._error)
             else:
                 return _declare(items).addCallbacks(_declared, self._error)
-        r = self.connected.addCallback(_connected)
+        self.do_on_connect.append(_connected)
         return self.connected
 
     def change_rq_name(self):
