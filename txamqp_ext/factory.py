@@ -85,9 +85,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
     def init_deferreds(self):
         self.connected = Deferred()
-        self.connected.addErrback(self._error)
         def _run_on_connect(protocol):
             return DeferredList(map(lambda x: x(protocol), self.do_on_connect))
+        self.connected.addCallback(_run_on_connect)
+        self.connected.addErrback(self._error)
 
     def _error(self, failure):
         '''
@@ -112,9 +113,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                      'auto_delete': False,
                                      'type': 'topic'}}
         '''
-        declared = Deferred()
         def _declared(_none):
-            declared.callback(True)
+            pass
         def _declare(d):
             return getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
         def _connected(_none, *args, **kwargs):
@@ -176,14 +176,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             ret.addCallback(self.read_message_loop)
             ret.addErrback(self._error)
             return ret
-        if not self.connected.called:
-            c = self.connected
-        else:
-            c = Deferred()
-            c.callback(True)
-            self.client.start_read_loop()
-        c.addCallbacks(_add_cb, self._error)
-        return c
+        self.do_on_connect.append(lambda x: _add_cb(x).addErrback(self._error))
+        return self.connected
 
     def buildProtocol(self, addr):
         print 'BUILD PROTOCOL'
