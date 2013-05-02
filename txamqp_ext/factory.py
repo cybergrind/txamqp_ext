@@ -34,7 +34,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.port = kwargs.get('port', 5672)
         self.user = kwargs.get('user', 'guest')
         self.password = kwargs.get('password', 'guest')
-        spec_file = kwargs.get('spec', 'file:./txamqp_ext/spec/amqp0-8.xml')
+        spec_file = kwargs.get('spec', './txamqp_ext/spec/amqp0-8.xml')
         self.spec = txamqp.spec.load(spec_file)
         self.vhost = kwargs.get('vhost', '/')
         self.delegate = TwistedDelegate()
@@ -114,7 +114,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                      'type': 'topic'}}
         '''
         def _declared(_none):
-            pass
+            self.log.debug('Declared')
         def _declare(d):
             return getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
         def _connected(_none, *args, **kwargs):
