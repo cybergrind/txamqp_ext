@@ -15,5 +15,5 @@ setup(name='txamqp_ext',
       packages=find_packages(exclude=['ez_setup', 'examples', 'tests', 'old*']),
       zip_safe=False,
       install_requires=["Twisted>=10.0",
-                        "txAMQP>=0.4"]
+                        "txAMQP>=0.6.1"]
       )
