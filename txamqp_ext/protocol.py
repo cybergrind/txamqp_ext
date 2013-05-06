@@ -148,6 +148,9 @@ class AmqpProtocol(AMQClient):
         self.shutdown_protocol()
         raise failure
 
+    def _skip_error(self, failure):
+        self.log.error('skip_error: %s'%failure.getTraceback())
+
     def doClose(self, reason):
         '''
         override standart method
@@ -385,7 +388,7 @@ class AmqpProtocol(AMQClient):
         def _close_connection(_none):
             if 0 in self.channels:
                 d = self.channels[0].connection_close()
-                d.addErrback(self._error)
+                d.addErrback(self._skip_error)
             else:
                 d = succeed(True)
             if self._rloop_call and not self._rloop_call.called:
@@ -397,15 +400,15 @@ class AmqpProtocol(AMQClient):
                 self.read_queue.close()
             if hasattr(self, 'write_chan') and not self.write_chan.closed:
                 dl.append(self.write_chan.channel_close()\
-                          .addErrback(self._error))
+                          .addErrback(self._skip_error))
             if self.read_chan and not self.read_chan.closed:
                 dl.append(self.read_chan.channel_close()\
-                          .addErrback(self._error))
+                          .addErrback(self._skip_error))
             return DeferredList(dl)
         def _unsubscribe_read_queue(_none):
             if self.read_chan:
                 d = self.read_chan.basic_cancel(self.factory.consumer_tag)
-                d.addErrback(self._error)
+                d.addErrback(self._skip_error)
                 return d
             else:
                 return succeed(lambda x: x)
@@ -422,7 +425,7 @@ class AmqpProtocol(AMQClient):
             d = _unsubscribe_read_queue(None)
             d.addCallback(_close_channels)
             d.addCallback(_close_connection)
-            d.addErrback(self._error)
+            d.addErrback(self._skip_error)
             d.addErrback(_close_connection)
             d.addErrback(_ok_fail)
             return d
