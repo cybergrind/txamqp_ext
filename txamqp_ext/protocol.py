@@ -223,18 +223,21 @@ class AmqpProtocol(AMQClient):
         if not 'headers' in content.properties:
             content['headers'] = {}
 
-        if content['headers'].get(self.factory.tid_name):
-            pass
-        elif msg.get('tid'):
+        #TODO forwarding reimplement. ensure all tid_name is ok
+        #if content['headers'].get(self.factory.tid_name):
+        #    pass
+        #elif msg.get('tid'):
+        if msg.get('tid'):
             content['headers'][self.factory.tid_name] = str(msg['tid'])
         elif msg.get(self.factory.tid_name):
             content['headers'][self.factory.tid_name] = str(msg[self.factory.tid_name])
         else:
             content['headers'][self.factory.tid_name] = str(int(time.time()*1e7))
 
-        if content['headers'].get(self.factory.rb_name):
-            pass
-        elif msg.get(self.factory.rb_name):
+        #if content['headers'].get(self.factory.rb_name):
+        #    pass
+        #elif msg.get(self.factory.rb_name):
+        if msg.get(self.factory.rb_name):
             content['headers'][self.factory.rb_name] = msg[self.factory.rb_name]
         # set delivery mode if not provided
         if not content.properties.get('delivery mode'):
