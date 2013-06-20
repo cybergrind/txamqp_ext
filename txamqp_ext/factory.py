@@ -21,6 +21,8 @@ from txamqp.queue import TimeoutDeferredQueue, Empty
 from txamqp_ext.protocol import AmqpProtocol
 
 
+NO_REPLY = 'no_reply'
+
 class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     protocol = AmqpProtocol
     log = logging.getLogger('AmqpReconnectingFactory')
@@ -301,6 +303,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         d = Deferred()
         def _push_message(reply):
+            if reply == 'no_reply':
+                d1 = Deferred()
+                d1.callback(True)
+                return d1
             route = msg.content['headers'].get(self.rb_name)
             tid = msg.content['headers'].get(self.tid_name)
             d1 = self.send_message(self.rq_exchange, route, reply,
