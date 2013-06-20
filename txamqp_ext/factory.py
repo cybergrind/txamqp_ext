@@ -118,7 +118,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         def _declared(_none):
             self.log.debug('Declared')
         def _declare(d):
-            return getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
+            if d['type'] in ('queue', 'exchange'):
+                return getattr(self.client.write_chan, '%s_declare'%d['type'])(**d['kwargs'])
+            elif d['type'] == 'binding':
+                return getattr(self.client.write_chan, 'queue_bind')(**d['kwargs'])
         def _connected(_none, *args, **kwargs):
             if type(items) == list:
                 d = map(_declare, items)
