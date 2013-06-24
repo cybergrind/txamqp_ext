@@ -22,7 +22,7 @@ class AmqpProtocol(AMQClient):
     log = logging.getLogger('AmqpProtocol')
 
     def __init__(self, *args, **kwargs):
-        print 'init protocol'
+        self.log.debug('init protocol')
         self._stop = False
         # callback on authenticated
         self._auth_succ = Deferred()
@@ -56,7 +56,6 @@ class AmqpProtocol(AMQClient):
             AMQClient.makeConnection(self, transport)
         except Exception, mess:
             self.log.error('During makeConnection: %r'%mess)
-            print 'Error on make connection: %r'%mess
 
     def connectionMade(self):
         AMQClient.connectionMade(self)
@@ -64,7 +63,7 @@ class AmqpProtocol(AMQClient):
         # set that we are not connected
         # since we should authenticate and open channels
         self.connected = False
-        print 'go authentication %r %r'%(self.factory.user, self.factory.password)
+        self.log.debug('go authentication %r %r'%(self.factory.user, self.factory.password))
         d = self.authenticate(self.factory.user, self.factory.password)
         d.addCallback(self._authenticated)
         d.addErrback(self._error)
@@ -78,7 +77,7 @@ class AmqpProtocol(AMQClient):
         for use AMQP ability for multiplexing messaging
         that will give ability to utilize all bandwidth
         '''
-        print 'authenticated'
+        self.log.debug('authenticated')
         rd = self.channel(1)
         rd.addCallback(self._open_read_channel)
         rd.addErrback(self._error)
@@ -127,7 +126,7 @@ class AmqpProtocol(AMQClient):
 
     def _trap_closed(self, failure):
         failure.trap(txamqp.client.Closed)
-        print 'trap closed'
+        self.log.debug('trap closed')
         return True
 
     def _error(self, failure, send_requeue=None):
@@ -139,12 +138,10 @@ class AmqpProtocol(AMQClient):
         for trap in self.factory._traps:
             if trap(failure):
                 return
-        print 'Failure protocol _error %r'%failure
-        self.log.error('_error: %s'%failure.getTraceback())
+        self.log.error('Protocol _error: %s'%failure.getTraceback())
         if send_requeue and not send_requeue['callback'].called:
             self.log.debug('requeue failed send message')
             self.factory.send_queue.put(send_requeue)
-        print failure.getTraceback()
         self.shutdown_protocol()
         raise failure
 
@@ -169,7 +166,6 @@ class AmqpProtocol(AMQClient):
             msg = self.factory.processing_send
             self.factory.send_retries += 1
             if self.factory.send_retries > self.factory.max_send_retries:
-                print '!!!!!!!!! DROP MESSAGE: %r'%msg
                 self.log.error('Drop message: %r'%msg)
                 self.factory.dropped_send_messages.put(msg)
                 self.factory.processing_send = None
@@ -361,8 +357,7 @@ class AmqpProtocol(AMQClient):
         if msg in self.__messages and not self._stop:
             self.__messages.remove(msg)
             return self.read_chan.basic_ack(msg.delivery_tag, multiple=False)
-        print 'MSG NOT IN OUR ACK %s %s'%(msg, self.__messages)
-        print 'LEN OF READ QUEUE: %s'%len(self.factory.read_queue.pending)
+
 
     def basic_reject(self, msg, requeue):
         if msg in self.__messages and not self._stop:

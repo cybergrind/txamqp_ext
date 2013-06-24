@@ -96,7 +96,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         default error handler
         '''
-        print 'error: %r'%failure.getTraceback()
         self.log.error(failure.getTraceback())
         raise failure
 
@@ -190,7 +189,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         return self.connected
 
     def buildProtocol(self, addr):
-        print 'BUILD PROTOCOL'
+        self.log.debug('BUILD PROTOCOL')
         p = self.protocol(self.delegate, self.vhost, self.spec)
         self.client = p
         self.client.factory = self
@@ -199,8 +198,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
     def clientConnectionFailed(self, connector, reason):
         self.init_deferreds()
-
-        print 'fail: %r'%reason
         self.log.error('Connection failed: %r [%s@%s:%s%s]'%(reason,
                                                              self.user,
                                                              self.host,
@@ -220,7 +217,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         self.init_deferreds()
         if not self._stopping:
-            print 'lost: %r'%reason
             self.log.error('Connection lost: %r [%s@%s:%s%s]'%(reason,
                                                                self.user,
                                                                self.host,
@@ -309,6 +305,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             if reply == 'no_reply':
                 d1 = Deferred()
                 d1.callback(True)
+                if not self.no_ack:
+                    self.client.basic_ack(msg)
                 return d1
             route = msg.content['headers'].get(self.rb_name)
             tid = msg.content['headers'].get(self.tid_name)
@@ -416,7 +414,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         shutdown factory in correct way
         '''
-        print 'Shutdown factory'
         self.log.debug('Shutdown factory')
         self._stopping = True
         if self._read_dc and not self._read_dc.called:
@@ -516,7 +513,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
                 self.push_dict[tid].callback(msg.body)
             del self.push_dict[tid]
         else:
-            print 'RRRR'
+            self.log.info('Got not our message in read queue. Check %r header'%self.tid_name)
         #reactor.callLater(0, self.push_read_loop)
 
     def push_read_loop(self):
@@ -530,7 +527,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         del self._timeout_calls[tid]
         if not callback.called:
             del self.push_dict[tid]
-            print 'errback'
+            self.log.warning('Message syn timeout')
             if default:
                 callback.callback(default)
             elif self.push_timeout_msg:
