@@ -227,6 +227,8 @@ class AmqpProtocol(AMQClient):
             content['headers'][self.factory.tid_name] = str(msg['tid'])
         elif msg.get(self.factory.tid_name):
             content['headers'][self.factory.tid_name] = str(msg[self.factory.tid_name])
+        elif content['headers'].get(self.factory.tid_name):
+            pass
         else:
             content['headers'][self.factory.tid_name] = str(int(time.time()*1e7))
 
