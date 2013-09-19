@@ -463,6 +463,8 @@ class AmqpSynFactory(AmqpReconnectingFactory):
             tid = msg[self.tid_name]
         elif type(msg) == dict and msg.get('tid'):
             tid = msg['tid']
+        elif type(msg) == Content and msg.headers.get(self.tid_name):
+            tid = msg.headers[self.tid_name]
         else:
             tid = str(int(time.time()*1e7))
         if 'rk' in kwargs:
