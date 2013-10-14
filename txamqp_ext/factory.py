@@ -23,7 +23,7 @@ from txamqp_ext.protocol import AmqpProtocol
 
 NO_REPLY = 'no_reply'
 
-class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
+class MqFactory(protocol.ReconnectingClientFactory):
     protocol = AmqpProtocol
     log = logging.getLogger('AmqpReconnectingFactory')
 
@@ -83,7 +83,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self._stopping = False
         self.init_deferreds()
         self.do_on_connect = []
-        reactor.connectTCP(self.host, self.port, self)
 
     def init_deferreds(self):
         self.connected = Deferred()
@@ -426,7 +425,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 class TimeoutException(Exception):
     pass
 
-class AmqpSynFactory(AmqpReconnectingFactory):
+class MqSynFactory(MqFactory):
     '''
     This factory implement non-blocking synchronous calls
     '''
@@ -437,7 +436,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         self.default_timeout = kwargs.get('timeout', 5)
         self._timeout_calls = {}
         self.def_full_content = kwargs.get('full_content', False)
-        AmqpReconnectingFactory.__init__(self, parent, **kwargs)
+        super(AmqpSynFactory, self).__init__(parent, **kwargs)
         self.full_content = True
         self.push_timeout_msg = None
 
@@ -499,8 +498,9 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         return d
 
     def setup_read_queue(self, *args, **kwargs):
-        r = AmqpReconnectingFactory.setup_read_queue(self, *args, **kwargs)
+        r = MqFactory.setup_read_queue(self, *args, **kwargs)
         self.rq_callback = self.push_read_process
+        return r
 
     def push_read_process(self, msg):
         '''
@@ -538,14 +538,13 @@ class AmqpSynFactory(AmqpReconnectingFactory):
                 callback.errback(TimeoutException('syn_timeout'))
 
     def shutdown_factory(self):
-        r = AmqpReconnectingFactory.shutdown_factory(self)
-        dl = []
+        r = MqFactory.shutdown_factory(self)
         for tid, to in self._timeout_calls.iteritems():
             to.cancel()
         return r
 
 
-class SimpleListenFactory(AmqpReconnectingFactory):
+class MqListenFactory(MqFactory):
     def __init__(self, parent, **kwargs):
         '''
         you need define only three params in kwargs
@@ -554,7 +553,7 @@ class SimpleListenFactory(AmqpReconnectingFactory):
         kwargs['push_back'] = True
         kwargs['no_ack'] = True
         kwargs['full_content'] = False
-        AmqpReconnectingFactory.__init__(self, parent, **kwargs)
+        super(SimpleListenFactory, self).__init__(parent, **kwargs)
         self.push_back = True
         rq_rk = kwargs.get('rq_rk')
         exc = kwargs.get('exchange')
@@ -572,4 +571,18 @@ class SimpleListenFactory(AmqpReconnectingFactory):
                               auto_delete=auto_delete,
                               exclusive=exclusive,
                               no_ack=no_ack)
+
+
+class AmqpReconnectingFactory(MqFactory):
+    def __init__(self, parent, **kwargs):
+        super(AmqpReconnectingFactory, self).__init__(parent, **kwargs)
+        reactor.connectTCP(self.host, self.port, self)
+
+class AmqpSynFactory(MqSynFactory, AmqpReconnectingFactory):
+    def __init__(self, parent, **kwargs):
+        super(AmqpSynFactory, self).__init__(parent, **kwargs)
+
+class SimpleListenFactory(MqListenFactory, AmqpReconnectingFactory):
+    def __init__(self, parent, **kwargs):
+        super(SimpleListenFactory, self).__init__(parent, **kwargs)
 
