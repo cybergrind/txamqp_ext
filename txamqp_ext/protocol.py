@@ -98,6 +98,8 @@ class AmqpProtocol(AMQClient):
         self.read_chan = chan
         def _opened(*args):
             self._read_opened.callback(self.read_chan)
+            if not self.factory.connected.called:
+                self.factory.connected.callback(self)
             if self.factory.rq_enabled:
                 self.start_read_loop()
         d = self.read_chan.channel_open()
@@ -113,7 +115,7 @@ class AmqpProtocol(AMQClient):
         '''
         self.write_chan = chan
         def _opened(*args):
-            if not self.factory.rq_enabled:
+            if not self.factory.connected.called:
                 self.factory.connected.callback(self)
             self.connected = True
             self._write_opened.callback(self.write_chan)
@@ -288,8 +290,6 @@ class AmqpProtocol(AMQClient):
 
         def _set_queue(queue):
             self.read_queue = queue
-            if not self.factory.connected.called and self.factory.rq_enabled:
-                self.factory.connected.callback(self)
             self._read_loop_started.callback(True)
             self.log.debug('Start read loop')
             reactor.callLater(0, self.read_loop)

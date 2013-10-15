@@ -127,7 +127,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 return DeferredList(d).addCallbacks(_declared, self._error)
             else:
                 return _declare(items).addCallbacks(_declared, self._error)
-        self.do_on_connect.append(_connected)
+        self.do_on_connect.insert(0, _connected)
         if self.connected.called:
             self.connected.addCallback(_connected)
         return self.connected
