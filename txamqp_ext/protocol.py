@@ -39,6 +39,8 @@ class AmqpProtocol(AMQClient):
         # read loop call
         self._rloop_call = None
         self._sloop_call = None
+        # ensure that we start read loop only once
+        self._read_loop_enabled = False
         self.read_queue = None
         self.read_chan = None
         kwargs['heartbeat'] = kwargs.get('heartbeat', 10)
@@ -287,7 +289,10 @@ class AmqpProtocol(AMQClient):
         no_ack = self.factory.no_ack
         tag = self.factory.consumer_tag
         self.log.debug('Start read loop %r'%[exc, q_name, q_rk])
-
+        if self._read_loop_enabled:
+            # do not start second read loop
+            return
+        self._read_loop_enabled = True
         def _set_queue(queue):
             self.read_queue = queue
             self._read_loop_started.callback(True)
