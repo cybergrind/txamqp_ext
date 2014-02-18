@@ -2,7 +2,6 @@
 import time
 from copy import copy
 
-import cjson
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.defer import DeferredList
@@ -39,8 +38,6 @@ class FactoryA(TestCase):
         def _analyze(_none):
             c = 'test_line'
             self.f.send_message(EXC, RK, c)
-            print 'RETRIES: %r'%self.f.retries
-            print 'CURR: %r'%self.f.processing_send
             assert len(self.f.dropped_send_messages.pending) == 1,\
                         'Dropped size: %r'%len(self.f.dropped_send_messages.pending)
         def p(_none):
@@ -90,7 +87,7 @@ class FactoryB(TestCase):
 
     def test_01_basic_setup_receive(self):
         def message_get(msg):
-            print msg
+            pass
         d = self.f.setup_read_queue(EXC, RK, message_get,
                                     queue_name=QUE,
                                     durable=True,
@@ -155,7 +152,6 @@ class FactoryC(TestCase):
     def test_02_send_rec(self):
         d1 = Deferred()
         def _get_result(result):
-            print 'GOT RESULT: %r'%result
             d1.callback(True)
         d = self.f.push_message('test')
         d.addCallback(_get_result)
@@ -219,10 +215,8 @@ class FactoryD(TestCase):
     def test_02_pb_send_rec(self):
         d1 = Deferred()
         def _get_result(result):
-            print 'GOT RESULT: %r'%result
             d1.callback(True)
         def _push_msg():
-            print 'PUSH MESSAGE'
             d = self.f.push_message('test')
             d.addCallback(_get_result)
         reactor.callLater(0.05, _push_msg)
@@ -258,7 +252,6 @@ class FactoryD(TestCase):
             d1.addCallbacks(_get_result, _no_result)
         def sl(failure):
             s = _sleep(3)
-            print 'Resend. %s'%failure.getTraceback()
             s.addCallback(_resend)
         def _ecb(*_any):
             raise Exception('ERR: %r'%(_any))
