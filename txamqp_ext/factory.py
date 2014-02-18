@@ -4,7 +4,13 @@ import logging
 import time
 import cPickle
 
-import cjson
+try:
+    import cjson
+    json_decode, json_encode = cjson.decode, cjson.encode
+except ImportError:
+    import json
+    json_decode, json_encode = json.loads, json.dumps
+
 from twisted.internet import reactor
 from twisted.internet import protocol
 from twisted.internet.defer import Deferred
@@ -239,7 +245,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         else:
             msg_body = msg
         if self.serialization == 'cjson' and not skip_encoding:
-            encoded = cjson.encode(msg_body)
+            encoded = json_encode(msg_body)
         elif self.serialization == 'cPickle' and not skip_encoding:
             encoded = cPickle.dumps(msg_body)
         else:
@@ -337,7 +343,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 self._read_dc = dc
             # TODO add support for different types
             if self.serialization == 'cjson':
-                msg.content.body = cjson.decode(msg.content.body)
+                msg.content.body = json_decode(msg.content.body)
             elif self.serialization == 'cPickle':
                 msg.content.body = cPickle.loads(msg.content.body)
 
