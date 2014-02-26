@@ -1,4 +1,3 @@
-
 import os
 import logging
 import time
@@ -69,6 +68,11 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.rb_name = kwargs.get('rb_name', 'route_back')
         # traps for catch errors from protocol
         self._traps = []
+
+        # skip_encoding
+        self.skip_encoding = kwargs.get('skip_encoding', False)
+        # skip_decoding
+        self.skip_decoding = kwargs.get('skip_decoding', False)
 
         self.rq_enabled = False
         self.rq_dynamic = False
@@ -244,7 +248,9 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg_body = msg.body
         else:
             msg_body = msg
-        if self.serialization == 'cjson' and not skip_encoding:
+        if self.skip_encoding:
+            encoded = msg_body
+        elif self.serialization == 'cjson' and not skip_encoding:
             encoded = json_encode(msg_body)
         elif self.serialization == 'cPickle' and not skip_encoding:
             encoded = cPickle.dumps(msg_body)
@@ -256,10 +262,20 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg = Content(encoded)
         return msg
 
+    def decode_message(self, msg):
+        # msg really just msg.content.body
+        if self.skip_decoding:
+            pass
+        elif self.serialization == 'cjson':
+            msg = json_decode(msg)
+        elif self.serialization == 'cPickle':
+            msg = cPickle.loads(msg)
+        return msg
+
     def send_message(self, exchange, routing_key, msg, **kwargs):
         '''
         basic method for send message to amqp broker
-       kwargs parameters is:
+        kwargs parameters is:
           @tx <bool> send message in transaction
           @callback <deferred> callback that will called after sending
         '''
@@ -341,11 +357,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             if self.parallel and not self._stopping:
                 dc = reactor.callLater(0, self.read_message_loop)
                 self._read_dc = dc
-            # TODO add support for different types
-            if self.serialization == 'cjson':
-                msg.content.body = json_decode(msg.content.body)
-            elif self.serialization == 'cPickle':
-                msg.content.body = cPickle.loads(msg.content.body)
+
+            msg.content.body = self.decode_message(msg.content.body)
 
             if not self.full_content:
                 msg_out = msg.content.body
@@ -578,4 +591,3 @@ class SimpleListenFactory(AmqpReconnectingFactory):
                               auto_delete=auto_delete,
                               exclusive=exclusive,
                               no_ack=no_ack)
-
