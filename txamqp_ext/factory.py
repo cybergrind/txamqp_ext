@@ -21,7 +21,6 @@ import txamqp
 import txamqp.spec
 from txamqp.client import TwistedDelegate
 from txamqp.content import Content
-from txamqp.queue import TimeoutDeferredQueue, Empty
 
 from txamqp_ext.protocol import AmqpProtocol
 
@@ -76,7 +75,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
         self.rq_enabled = False
         self.rq_dynamic = False
-        self.read_queue = TimeoutDeferredQueue()
+        self.read_queue = DeferredQueue()
         self.send_queue = DeferredQueue()
         self.dropped_send_messages = DeferredQueue()
         self.processing_send = None
