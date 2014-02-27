@@ -231,8 +231,8 @@ class AmqpProtocol(AMQClient):
         if msg.get(self.factory.rb_name):
             content['headers'][self.factory.rb_name] = msg[self.factory.rb_name]
         # set delivery mode if not provided
-        if not content.properties.get('delivery mode'):
-            content['delivery mode'] = getattr(self.factory, 'delivery_mode', 2)
+        if not content.properties.get('delivery_mode'):
+            content['delivery_mode'] = getattr(self.factory, 'delivery_mode', 1)
         def _after_send(res):
             if not cb.called:
                 cb.callback(res)

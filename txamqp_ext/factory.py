@@ -47,7 +47,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         # parallel sending and receiving messages
         self.parallel = kwargs.get('parallel', True)
         # default delivery_mode for messages
-        self.delivery_mode = kwargs.get('delivery_mode', 2)
+        self.delivery_mode = kwargs.get('delivery_mode', 1)
         # reconnect when lost connection
         self.continueTrying = kwargs.get('reconnect', True)
         # consumer tag for read queue will be queue_name if not defined
