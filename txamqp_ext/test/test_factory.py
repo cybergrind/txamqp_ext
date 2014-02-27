@@ -133,10 +133,10 @@ class FactoryC(TestCase):
                                 auto_delete=True,
                                 exclusive=True)
         self.f2 = AmqpReconnectingFactory(self, **kwargs)
-        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
-                                     durable=False,
-                                     auto_delete=True,
-                                     exclusive=True)
+        self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                 durable=False,
+                                 auto_delete=True,
+                                 exclusive=True)
         return DeferredList([self.f.connected, self.f2.connected])
 
     def _test_echoer(self, msg):
@@ -198,10 +198,10 @@ class FactoryD(TestCase):
                                 auto_delete=True,
                                 exclusive=True)
         self.f2 = AmqpReconnectingFactory(self, **kwargs2)
-        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
-                                     durable=False,
-                                     auto_delete=True,
-                                     exclusive=True)
+        self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                 durable=False,
+                                 auto_delete=True,
+                                 exclusive=True)
         dl = DeferredList([self.f.connected, self.f2.connected])
         return dl
 
@@ -292,7 +292,7 @@ class FactoryE(FactoryD):
                                 auto_delete=True,
                                 exclusive=True)
         self.f2 = AmqpReconnectingFactory(self, **kwargs2)
-        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+        self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
                                      durable=False,
                                      auto_delete=True,
                                      exclusive=True)
@@ -315,10 +315,10 @@ class FactoryF(FactoryD):
                                 auto_delete=True,
                                 exclusive=True)
         self.f2 = AmqpReconnectingFactory(self, **kwargs2)
-        d = self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
-                                     durable=False,
-                                     auto_delete=True,
-                                     exclusive=True)
+        self.f2.setup_read_queue(EXC, RK2, self._test_echoer,
+                                 durable=False,
+                                 auto_delete=True,
+                                 exclusive=True)
         dl = DeferredList([self.f.connected, self.f2.connected])
         return dl
 

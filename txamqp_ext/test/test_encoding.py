@@ -1,18 +1,11 @@
-import time
-from copy import copy
-
 import cjson
-from twisted.internet import reactor
-from twisted.internet.defer import Deferred, inlineCallbacks, returnValue
+
+from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.defer import DeferredList
 from twisted.trial.unittest import TestCase
 
-from txamqp.content import Content
-
 from txamqp_ext.factory import AmqpReconnectingFactory
-from txamqp_ext.factory import AmqpSynFactory
-from txamqp_ext.factory import SimpleListenFactory
-from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
+from txamqp_ext.test import EXC, QUE, RK
 
 
 

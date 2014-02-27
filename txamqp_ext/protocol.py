@@ -44,9 +44,6 @@ class AmqpProtocol(AMQClient):
         self.read_queue = None
         self.read_chan = None
         kwargs['heartbeat'] = kwargs.get('heartbeat', 10)
-        # failure traps
-        #self.log.warning('AUTO SHUTDOWN 15 sec')
-        #reactor.callLater(15, lambda _: self.shutdown_protocol(), (None,))
         self.__messages = set()
         AMQClient.__init__(self, *args, **kwargs)
 
@@ -61,11 +58,10 @@ class AmqpProtocol(AMQClient):
 
     def connectionMade(self):
         AMQClient.connectionMade(self)
-
         # set that we are not connected
         # since we should authenticate and open channels
         self.connected = False
-        self.log.debug('go authentication %r %r'%(self.factory.user, self.factory.password))
+        self.log.debug('go authentication %r'%self.factory.user)
         d = self.authenticate(self.factory.user, self.factory.password)
         d.addCallback(self._authenticated)
         d.addErrback(self._error)
@@ -122,7 +118,6 @@ class AmqpProtocol(AMQClient):
             self.connected = True
             self._write_opened.callback(self.write_chan)
             self._sloop_call = reactor.callLater(0, self.send_loop)
-            #self.send_loop()
         d = self.write_chan.channel_open()
         d.addCallback(_opened)
         d.addErrback(self._error)
@@ -224,9 +219,6 @@ class AmqpProtocol(AMQClient):
             content['headers'] = {}
 
         #TODO forwarding reimplement. ensure all tid_name is ok
-        #if content['headers'].get(self.factory.tid_name):
-        #    pass
-        #elif msg.get('tid'):
         if msg.get('tid'):
             content['headers'][self.factory.tid_name] = str(msg['tid'])
         elif msg.get(self.factory.tid_name):
@@ -236,9 +228,6 @@ class AmqpProtocol(AMQClient):
         else:
             content['headers'][self.factory.tid_name] = str(int(time.time()*1e7))
 
-        #if content['headers'].get(self.factory.rb_name):
-        #    pass
-        #elif msg.get(self.factory.rb_name):
         if msg.get(self.factory.rb_name):
             content['headers'][self.factory.rb_name] = msg[self.factory.rb_name]
         # set delivery mode if not provided

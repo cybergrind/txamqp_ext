@@ -378,8 +378,6 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                                   requeue=self.requeue_on_error)
                     self.log.info('No ack message: %r'%failure.getTraceback())
                     read_new_message = True
-                    #self.log.info('Stop consuming')
-                    #raise failure
                 else:
                     try:
                         err_resp = self.read_error_handler(failure, msg)
@@ -517,7 +515,7 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         return d
 
     def setup_read_queue(self, *args, **kwargs):
-        r = AmqpReconnectingFactory.setup_read_queue(self, *args, **kwargs)
+        AmqpReconnectingFactory.setup_read_queue(self, *args, **kwargs)
         self.rq_callback = self.push_read_process
 
     def push_read_process(self, msg):
@@ -534,7 +532,6 @@ class AmqpSynFactory(AmqpReconnectingFactory):
             del self.push_dict[tid]
         else:
             self.log.info('Got not our message in read queue. Check %r header'%self.tid_name)
-        #reactor.callLater(0, self.push_read_loop)
 
     def push_read_loop(self):
         d = self.read_queue.get().addCallback(self.push_read_process)
@@ -557,7 +554,6 @@ class AmqpSynFactory(AmqpReconnectingFactory):
 
     def shutdown_factory(self):
         r = AmqpReconnectingFactory.shutdown_factory(self)
-        dl = []
         for tid, to in self._timeout_calls.iteritems():
             to.cancel()
         return r
