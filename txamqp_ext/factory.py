@@ -384,6 +384,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                     except Exception, mess:
                         self.log.exception('During run read_error_handler: ')
                         raise Exception(mess)
+                    if not isinstance(err_resp, dict):
+                        err_resp = {}
                     requeue_timeout = err_resp.get('requeue_timeout',
                                                    self.requeue_timeout)
                     requeue_on_error = err_resp.get('requeue_on_error',
