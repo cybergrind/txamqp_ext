@@ -223,11 +223,12 @@ class AmqpProtocol(AMQClient):
 
         if self.factory.content_type_name in content.properties:
             pass
-        elif self.factory.default_content_type:
+        elif self.factory.serialization == 'content_based' and self.factory.default_content_type:
             content[self.factory.content_type_name] = self.factory.default_content_type
         elif not content.properties.get(self.factory.content_type_name):
             content[self.factory.content_type_name] = \
                 self.content_mapping.get(self.factory.serialization, 'plain/text')
+
 
         #TODO forwarding reimplement. ensure all tid_name is ok
         if msg.get('tid'):

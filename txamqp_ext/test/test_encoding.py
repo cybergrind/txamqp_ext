@@ -1,9 +1,11 @@
 import cjson
 from copy import copy
+import cPickle
 
 from twisted.internet.defer import Deferred, inlineCallbacks
 from twisted.internet.defer import DeferredList
 from twisted.trial.unittest import TestCase
+from txamqp.content import Content
 
 from txamqp_ext.factory import AmqpReconnectingFactory, AmqpSynFactory
 from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
@@ -16,7 +18,7 @@ class TestEncoding(TestCase):
     def setUp(self):
         kwargs = {'spec': 'file:../txamqp_ext/spec/amqp0-8.xml',
                   'parallel': False,
-                  'serialization': 'cjson',
+                  'serialization': 'cPickle',
                   'full_content': True,
                   'skip_decoding': True}
         self.f = AmqpReconnectingFactory(self, **kwargs)
@@ -26,7 +28,7 @@ class TestEncoding(TestCase):
         d1 = Deferred()
 
         def _failed(failure):
-            failure.trap(cjson.EncodeError)
+            failure.trap(TypeError)
             d.callback(True)
 
         self.f.send_message(EXC, RK, {1: self}, callback=d1).addErrback(_failed)
@@ -38,22 +40,25 @@ class TestEncoding(TestCase):
         d1 = Deferred()
         d2 = Deferred()
 
-        encoded = cjson.encode({'test_message': 'asdf'})
+        encoded_body = cjson.encode({'test_message': 'asdf'})
+        encoded = Content(encoded_body)
+        encoded['content type'] = 'application/json'
         def _ok(_any):
             d.callback(True)
 
         def _ok_msg(_any):
             assert _any['content type'] == 'application/json', _any
-            assert encoded == _any.body, 'Got %r'%_any.body
+            assert encoded_body == _any.body, 'Got %r'%_any.body
             d2.callback(True)
 
         def _err_msg(_any, msg):
+            print 'Fail002: %r'%msg
             d2.errback(True)
             return {}
 
         yield self.f.setup_read_queue(EXC, RK, _ok_msg,
-                                      queue_name=QUE, durable=True,
-                                      auto_delete=False,
+                                      queue_name=QUE, durable=False,
+                                      auto_delete=True,
                                       requeue_on_error=False,
                                       read_error_handler=_err_msg)
         yield self.f.client.on_read_loop_started()
@@ -62,8 +67,42 @@ class TestEncoding(TestCase):
 
         yield DeferredList([d, d2])
 
+    @inlineCallbacks
+    def test_003_set_content_type(self):
+        d = Deferred()
+        d1 = Deferred()
+        d2 = Deferred()
+
+        encoded = {'test_message': 'asdf'}
+        def _ok(_any):
+            d.callback(True)
+
+        def _ok_msg(_any):
+            assert _any['content type'] == 'application/x-pickle', _any
+            assert encoded == cPickle.loads(_any.body), 'Got %r'%_any.body
+            d2.callback(True)
+
+        def _err_msg(_any, msg):
+            print 'REJ: %r'%msg
+            d2.errback(True)
+            return {}
+
+        yield self.f.setup_read_queue(EXC, RK, _ok_msg,
+                                      queue_name=QUE, durable=False,
+                                      auto_delete=True,
+                                      requeue_on_error=False,
+                                      read_error_handler=_err_msg)
+        yield self.f.client.on_read_loop_started()
+        self.f.send_message(EXC, RK, encoded, callback=d1,
+                            skip_encoding=False).addCallback(_ok)
+
+        yield DeferredList([d, d2])
+
+    @inlineCallbacks
     def tearDown(self):
-        return self.f.shutdown_factory()
+        if hasattr(self.f.protocol, 'read_chan'):
+            yield self.f.protocol.read_chan.queue_delete(queue=QUE)
+        yield self.f.shutdown_factory()
 
 class TestContentTypes(TestCase):
     timeout = 4

@@ -154,8 +154,8 @@ class ProtocolB(TestCase):
             d1.addCallback(_defined_resp)
 
             d2 = w_chan.queue_declare(queue=QUE,
-                                      durable=True,
-                                      auto_delete=False)
+                                      durable=False,
+                                      auto_delete=True)
             d2.addCallback(_defined_resp)
             return DeferredList([d1, d2])
         d = self.f.client.on_write_channel_opened()

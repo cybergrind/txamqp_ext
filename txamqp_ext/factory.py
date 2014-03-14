@@ -252,6 +252,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                   'application/json': json_encode,
                   'plain/text': lambda x: x if isinstance(x, basestring) else str(x),
                   '': lambda x: x if isinstance(x, basestring) else str(x)}
+
     def encode_message(self, msg, skip_encoding=False):
         '''
         default method for encode amqp message body
@@ -327,7 +328,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 callback = kwargs['callback']
             else:
                 callback = Deferred()
-            skip_encoding = kwargs.get('skip_encoding', False) or self.skip_encoding
+            if 'skip_encoding' in kwargs:
+                skip_encoding = kwargs['skip_encoding']
+            else:
+                skip_encoding = self.skip_encoding
             msg_send = self.encode_message(msg, skip_encoding)
             msg_dict = {'exchange': exchange,
                         'rk': routing_key,
