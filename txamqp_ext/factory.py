@@ -26,6 +26,7 @@ from txamqp_ext.protocol import AmqpProtocol
 
 
 NO_REPLY = 'no_reply'
+CONTENT_BASED = 'content_based'
 
 class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
     protocol = AmqpProtocol
@@ -60,6 +61,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self.full_content = kwargs.get('full_content', False)
         # serialization
         self.serialization = kwargs.get('serialization', 'cjson')
+        self.default_content_type = kwargs.get('default_content_type', 'application/json')
         # return deferred that will send reply
         self.push_back = kwargs.get('push_back', False)
         self.prefetch_count = kwargs.get('prefetch_count', 50)
@@ -92,6 +94,13 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         self._stopping = False
         self.init_deferreds()
         self.do_on_connect = []
+
+        if self.spec.major == 8 and self.spec.minor == 0:
+            self.content_type_name = 'content type'
+            self.delivery_mode_name = 'delivery mode'
+        else:
+            self.content_type_name = 'content-type'
+            self.delivery_mode_name = 'delivery-mode'
         reactor.connectTCP(self.host, self.port, self)
 
     def init_deferreds(self):
@@ -239,6 +248,10 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         protocol.ReconnectingClientFactory\
                 .clientConnectionLost(self, connector, reason)
 
+    encode_map = {'application/x-pickle': cPickle.dumps,
+                  'application/json': json_encode,
+                  'plain/text': lambda x: x if isinstance(x, basestring) else str(x),
+                  '': lambda x: x if isinstance(x, basestring) else str(x)}
     def encode_message(self, msg, skip_encoding=False):
         '''
         default method for encode amqp message body
@@ -253,6 +266,15 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             encoded = json_encode(msg_body)
         elif self.serialization == 'cPickle' and not skip_encoding:
             encoded = cPickle.dumps(msg_body)
+        elif self.serialization == 'content_based' and not skip_encoding:
+            if isinstance(msg, Content):
+                if msg.properties.get(self.content_type_name):
+                    encoded = self.encode_map[msg[self.content_type_name]](msg.body)
+                else:
+                    encoded = self.encode_map[self.default_content_type](msg.body)
+            else:
+                content_type = self.default_content_type
+                encoded = self.encode_map[content_type](msg)
         else:
             encoded = str(msg_body)
         if type(msg) == Content:
@@ -261,15 +283,21 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg = Content(encoded)
         return msg
 
+    decode_map = {'application/x-pickle': cPickle.loads,
+                  'application/json': json_decode,
+                  'plain/text': lambda x: x,
+                  '': lambda x: x}
     def decode_message(self, msg):
         # msg really just msg.content.body
         if self.skip_decoding:
-            pass
+            return
         elif self.serialization == 'cjson':
-            msg = json_decode(msg)
+            msg.content.body = json_decode(msg.content.body)
         elif self.serialization == 'cPickle':
-            msg = cPickle.loads(msg)
-        return msg
+            msg.content.body = cPickle.loads(msg.content.body)
+        elif self.serialization == 'content_based':
+            dec_func = self.decode_map.get(msg.content.properties.get(self.content_type_name, ''))
+            msg.content.body = dec_func(msg.content.body)
 
     def send_message(self, exchange, routing_key, msg, **kwargs):
         '''
@@ -299,7 +327,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 callback = kwargs['callback']
             else:
                 callback = Deferred()
-            skip_encoding = kwargs.get('skip_encoding', False)
+            skip_encoding = kwargs.get('skip_encoding', False) or self.skip_encoding
             msg_send = self.encode_message(msg, skip_encoding)
             msg_dict = {'exchange': exchange,
                         'rk': routing_key,
@@ -357,7 +385,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                 dc = reactor.callLater(0, self.read_message_loop)
                 self._read_dc = dc
 
-            msg.content.body = self.decode_message(msg.content.body)
+            # Will change body here!
+            self.decode_message(msg)
 
             if not self.full_content:
                 msg_out = msg.content.body

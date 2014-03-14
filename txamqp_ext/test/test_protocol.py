@@ -52,6 +52,14 @@ class TestFactory(protocol.ClientFactory):
 
         self.processing_send = None
         self.send_retries = 0
+
+        self.serialization = 'cjson'
+        self.default_content_type = 'application/json'
+        self.skip_encoding = False
+        self.skip_decoding = False
+        self.content_type_name = 'content-type'
+        self.delivery_mode_name = 'delivery-mode'
+
         reactor.connectTCP(self.host, self.port, self)
 
     def startedConnecting(self, connector):
@@ -316,4 +324,3 @@ class ProtocolC(TestCase):
 
     def tearDown(self):
         return self.f.client.shutdown_protocol()
-

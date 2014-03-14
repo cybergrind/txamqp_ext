@@ -1,4 +1,3 @@
-
 import logging
 import time
 
@@ -20,6 +19,9 @@ from txamqp_ext.interfaces import IAmqpProtocol
 class AmqpProtocol(AMQClient):
     implements(IAmqpProtocol)
     log = logging.getLogger('AmqpProtocol')
+    content_mapping = {'cPickle': 'application/x-pickle',
+                       'cjson': 'application/json',
+                       'json': 'application/json'}
 
     def __init__(self, *args, **kwargs):
         self.log.debug('init protocol')
@@ -46,6 +48,7 @@ class AmqpProtocol(AMQClient):
         kwargs['heartbeat'] = kwargs.get('heartbeat', 10)
         self.__messages = set()
         AMQClient.__init__(self, *args, **kwargs)
+
 
     def makeConnection(self, transport):
         '''
@@ -218,6 +221,14 @@ class AmqpProtocol(AMQClient):
         if not 'headers' in content.properties:
             content['headers'] = {}
 
+        if self.factory.content_type_name in content.properties:
+            pass
+        elif self.factory.default_content_type:
+            content[self.factory.content_type_name] = self.factory.default_content_type
+        elif not content.properties.get(self.factory.content_type_name):
+            content[self.factory.content_type_name] = \
+                self.content_mapping.get(self.factory.serialization, 'plain/text')
+
         #TODO forwarding reimplement. ensure all tid_name is ok
         if msg.get('tid'):
             content['headers'][self.factory.tid_name] = str(msg['tid'])
@@ -231,8 +242,8 @@ class AmqpProtocol(AMQClient):
         if msg.get(self.factory.rb_name):
             content['headers'][self.factory.rb_name] = msg[self.factory.rb_name]
         # set delivery mode if not provided
-        if not content.properties.get('delivery_mode'):
-            content['delivery_mode'] = getattr(self.factory, 'delivery_mode', 1)
+        if not content.properties.get(self.factory.delivery_mode_name):
+            content[self.factory.delivery_mode_name] = getattr(self.factory, 'delivery-mode', 1)
         def _after_send(res):
             if not cb.called:
                 cb.callback(res)
@@ -443,5 +454,3 @@ class AmqpProtocol(AMQClient):
 if __name__ == '__main__':
     am = AmqpProtocol(TwistedDelegate(), '/',
                       txamqp.spec.load('file:txamqp_ext/spec/amqp0-8.xml'))
-
-
