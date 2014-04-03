@@ -250,7 +250,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
     encode_map = {'application/x-pickle': cPickle.dumps,
                   'application/json': json_encode,
-                  'plain/text': lambda x: x if isinstance(x, basestring) else str(x),
+                  'text/plain': lambda x: x if isinstance(x, basestring) else str(x),
                   '': lambda x: x if isinstance(x, basestring) else str(x)}
 
     def encode_message(self, msg, skip_encoding=False):
@@ -286,7 +286,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
     decode_map = {'application/x-pickle': cPickle.loads,
                   'application/json': json_decode,
-                  'plain/text': lambda x: x,
+                  'text/plain': lambda x: x,
                   '': lambda x: x}
     def decode_message(self, msg):
         # msg really just msg.content.body

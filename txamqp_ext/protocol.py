@@ -227,7 +227,7 @@ class AmqpProtocol(AMQClient):
             content[self.factory.content_type_name] = self.factory.default_content_type
         elif not content.properties.get(self.factory.content_type_name):
             content[self.factory.content_type_name] = \
-                self.content_mapping.get(self.factory.serialization, 'plain/text')
+                self.content_mapping.get(self.factory.serialization, 'text/plain')
 
 
         #TODO forwarding reimplement. ensure all tid_name is ok
