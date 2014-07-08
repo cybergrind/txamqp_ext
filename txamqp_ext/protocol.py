@@ -21,7 +21,8 @@ class AmqpProtocol(AMQClient):
     log = logging.getLogger('AmqpProtocol')
     content_mapping = {'cPickle': 'application/x-pickle',
                        'cjson': 'application/json',
-                       'json': 'application/json'}
+                       'json': 'application/json',
+                       'msgpack': 'application/x-msgpack'}
 
     def __init__(self, *args, **kwargs):
         self.log.debug('init protocol')

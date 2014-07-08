@@ -10,6 +10,9 @@ except ImportError:
     import json
     json_decode, json_encode = json.loads, json.dumps
 
+import msgpack
+msgpack_decode, msgpack_encode = msgpack.loads, msgpack.dumps
+
 from twisted.internet import reactor
 from twisted.internet import protocol
 from twisted.internet.defer import Deferred
@@ -250,6 +253,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
     encode_map = {'application/x-pickle': cPickle.dumps,
                   'application/json': json_encode,
+                  'application/x-msgpack': msgpack_decode,
                   'text/plain': lambda x: x if isinstance(x, basestring) else str(x),
                   '': lambda x: x if isinstance(x, basestring) else str(x)}
 
@@ -263,11 +267,13 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg_body = msg
         if self.skip_encoding:
             encoded = msg_body
-        elif self.serialization == 'cjson' and not skip_encoding:
+        elif self.serialization == 'cjson':
             encoded = json_encode(msg_body)
-        elif self.serialization == 'cPickle' and not skip_encoding:
+        elif self.serialization == 'cPickle':
             encoded = cPickle.dumps(msg_body)
-        elif self.serialization == 'content_based' and not skip_encoding:
+        elif self.serialization == 'msgpack':
+            encoded = msgpack_encode(msg_body)
+        elif self.serialization == 'content_based':
             if isinstance(msg, Content):
                 if msg.properties.get(self.content_type_name):
                     encoded = self.encode_map[msg[self.content_type_name]](msg.body)
@@ -286,6 +292,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
 
     decode_map = {'application/x-pickle': cPickle.loads,
                   'application/json': json_decode,
+                  'application/x-msgpack': msgpack_decode,
                   'text/plain': lambda x: x,
                   '': lambda x: x}
     def decode_message(self, msg):
@@ -296,6 +303,8 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg.content.body = json_decode(msg.content.body)
         elif self.serialization == 'cPickle':
             msg.content.body = cPickle.loads(msg.content.body)
+        elif self.serialization == 'msgpack':
+            msg.content.bogy = msgpack_encode(msg.content.body)
         elif self.serialization == 'content_based':
             dec_func = self.decode_map.get(msg.content.properties.get(self.content_type_name, ''))
             msg.content.body = dec_func(msg.content.body)
