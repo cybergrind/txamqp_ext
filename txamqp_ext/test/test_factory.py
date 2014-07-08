@@ -90,8 +90,8 @@ class FactoryB(TestCase):
             pass
         d = self.f.setup_read_queue(EXC, RK, message_get,
                                     queue_name=QUE,
-                                    durable=False,
-                                    auto_delete=True)
+                                    durable=True,
+                                    auto_delete=False)
         return d
 
     def test_02_basic_send_and_receive(self):
@@ -391,9 +391,3 @@ class FactoryH(FactoryD):
         if msg == 'test_message':
             return
         return d.callback(msg)
-
-
-
-
-
-

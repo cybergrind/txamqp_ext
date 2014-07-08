@@ -1,4 +1,5 @@
 import cjson
+import msgpack
 from copy import copy
 import cPickle
 
@@ -8,7 +9,7 @@ from twisted.trial.unittest import TestCase
 from txamqp.content import Content
 
 from txamqp_ext.factory import AmqpReconnectingFactory, AmqpSynFactory
-from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
+from txamqp_ext.test import EXC, EQUE, RK, RK2, RK3
 
 
 
@@ -57,7 +58,7 @@ class TestEncoding(TestCase):
             return {}
 
         yield self.f.setup_read_queue(EXC, RK, _ok_msg,
-                                      queue_name=QUE, durable=False,
+                                      queue_name=EQUE, durable=False,
                                       auto_delete=True,
                                       requeue_on_error=False,
                                       read_error_handler=_err_msg)
@@ -88,7 +89,7 @@ class TestEncoding(TestCase):
             return {}
 
         yield self.f.setup_read_queue(EXC, RK, _ok_msg,
-                                      queue_name=QUE, durable=False,
+                                      queue_name=EQUE, durable=False,
                                       auto_delete=True,
                                       requeue_on_error=False,
                                       read_error_handler=_err_msg)
@@ -99,9 +100,45 @@ class TestEncoding(TestCase):
         yield DeferredList([d, d2])
 
     @inlineCallbacks
+    def test_004_msgpack(self):
+        d = Deferred()
+        d1 = Deferred()
+        d2 = Deferred()
+
+        msg_body = {'test_message': 'asdf'}
+        encoded_body = msgpack.dumps(msg_body)
+        encoded_msg = Content(encoded_body)
+        encoded_msg['content type'] = 'application/x-msgpack'
+        self.f.skip_decoding = False
+        self.f.serialization = 'content_based'
+        def _ok(_any):
+            d.callback(True)
+
+        def _ok_msg(_any):
+            assert _any['content type'] == 'application/x-msgpack', _any
+            assert msg_body == _any.body, 'Got %r'%_any.body
+            d2.callback(True)
+
+        def _err_msg(_any, msg):
+            print 'Fail002: %r'%msg
+            d2.errback(True)
+            return {}
+
+        yield self.f.setup_read_queue(EXC, RK, _ok_msg,
+                                      queue_name=EQUE, durable=False,
+                                      auto_delete=True,
+                                      requeue_on_error=False,
+                                      read_error_handler=_err_msg)
+        yield self.f.client.on_read_loop_started()
+        self.f.send_message(EXC, RK, encoded_msg, callback=d1,
+                            skip_encoding=True).addCallback(_ok)
+
+        yield DeferredList([d, d2])
+
+    @inlineCallbacks
     def tearDown(self):
         if hasattr(self.f.protocol, 'read_chan'):
-            yield self.f.protocol.read_chan.queue_delete(queue=QUE)
+            yield self.f.protocol.read_chan.queue_delete(queue=EQUE)
         yield self.f.shutdown_factory()
 
 class TestContentTypes(TestCase):
