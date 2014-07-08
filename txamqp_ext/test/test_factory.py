@@ -102,8 +102,8 @@ class FactoryB(TestCase):
             d1.callback(msg)
         d = self.f.setup_read_queue(EXC, RK, message_get,
                                     no_ack=False,
-                                    auto_delete=True,
-                                    durable=False)
+                                    auto_delete=False,
+                                    durable=True)
         def send_msg(_none):
             c = txt
             self.f.send_message(EXC, RK, c)
