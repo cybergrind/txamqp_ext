@@ -14,6 +14,10 @@ from txamqp_ext.factory import AmqpSynFactory
 from txamqp_ext.factory import SimpleListenFactory
 from txamqp_ext.test import EXC, QUE, RK, RK2, RK3
 
+import logging
+
+logging.basicConfig(filename='debug.log', level=logging.DEBUG)
+
 
 class FactoryA(TestCase):
     timeout = 10
@@ -231,7 +235,7 @@ class FactoryD(TestCase):
         for i in xrange(250):
             tid = str(int(time.time()*1e7))
             d[tid] = Deferred()
-            d1 = self.f.push_message(tid, tid=tid)
+            d1 = self.f.push_message(tid, tid=tid, timeout_sec=10)
             d1.addCallback(_get_result)
             d1.addErrback(self._err)
         return DeferredList(d.values())
