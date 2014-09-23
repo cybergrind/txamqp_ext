@@ -316,13 +316,17 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
           @tx <bool> send message in transaction
           @callback <deferred> callback that will called after sending
         '''
-        def _check_send_timeout(cb):
+        def _check_send_timeout(cb, msg):
             # call if send was fail
             if not cb.called:
-                self.log.info("Message sending timeout. Raise error %r"%cb)
+                self.log.info("Message sending timeout. Raise error %r Pending: [%s]"\
+                              %(cb, len(self.send_queue.pending)))
                 cb.errback(Exception('send_timeout'))
             else:
                 self.log.debug("Message cb is called: %r -> %r"%(cb, cb.called))
+            if msg in self.send_queue.pending:
+                    self.send_queue.pending.remove(msg)
+
         def _remove_timeout(res, d):
             # remove timeout task
             # self.log.debug("Call remove timeout from %r res %r"%(res, d))
@@ -349,7 +353,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                         }
             msg_dict.update(kwargs)
             # self.log.debug('Send msg: %r'%msg)
-            to = reactor.callLater(self.send_timeout, _check_send_timeout, callback)
+            to = reactor.callLater(self.send_timeout, _check_send_timeout, callback, msg_dict)
             callback.addCallback(_remove_timeout, to)
             self.send_queue.put(msg_dict)
             return callback
