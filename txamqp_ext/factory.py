@@ -273,7 +273,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             encoded = cPickle.dumps(msg_body)
         elif self.serialization == 'msgpack':
             encoded = msgpack_encode(msg_body)
-        elif self.serialization == 'content_based':
+        elif self.serialization == CONTENT_BASED:
             if isinstance(msg, Content):
                 if msg.properties.get(self.content_type_name):
                     encoded = self.encode_map[msg[self.content_type_name]](msg.body)
@@ -305,7 +305,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg.content.body = cPickle.loads(msg.content.body)
         elif self.serialization == 'msgpack':
             msg.content.bogy = msgpack_encode(msg.content.body)
-        elif self.serialization == 'content_based':
+        elif self.serialization == CONTENT_BASED:
             dec_func = self.decode_map.get(msg.content.properties.get(self.content_type_name, ''))
             msg.content.body = dec_func(msg.content.body)
 
@@ -368,7 +368,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         '''
         d = Deferred()
         def _push_message(reply):
-            if reply == 'no_reply':
+            if reply == NO_REPLY:
                 d1 = Deferred()
                 d1.callback(True)
                 if not self.no_ack:
