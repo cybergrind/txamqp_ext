@@ -563,8 +563,9 @@ class AmqpSynFactory(AmqpReconnectingFactory):
         return d
 
     def setup_read_queue(self, *args, **kwargs):
-        AmqpReconnectingFactory.setup_read_queue(self, *args, **kwargs)
+        d = AmqpReconnectingFactory.setup_read_queue(self, *args, **kwargs)
         self.rq_callback = self.push_read_process
+        return d
 
     def push_read_process(self, msg):
         '''
