@@ -1,4 +1,4 @@
-import cjson
+import json
 import msgpack
 from copy import copy
 import cPickle
@@ -41,7 +41,7 @@ class TestEncoding(TestCase):
         d1 = Deferred()
         d2 = Deferred()
 
-        encoded_body = cjson.encode({'test_message': 'asdf'})
+        encoded_body = json.dumps({'test_message': 'asdf'})
         encoded = Content(encoded_body)
         encoded['content type'] = 'application/json'
         def _ok(_any):
