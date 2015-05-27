@@ -145,7 +145,7 @@ class TestContentTypes(TestCase):
     timeout = 4
 
     def setUp(self):
-        kwargs_fwdr = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.stripped.xml',
+        kwargs_fwdr = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.xml',
                    'parallel': True,
                    'full_content': True,
                    'skip_decoding': True,
@@ -160,7 +160,7 @@ class TestContentTypes(TestCase):
                                         queue_name='backwarder',  durable=False,
                                         auto_delete=True)
 
-        kwargs_common = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.stripped.xml',
+        kwargs_common = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.xml',
                          'parallel': True,
                          'exchange': EXC,
                          'serialization': 'content_based',
@@ -175,7 +175,7 @@ class TestContentTypes(TestCase):
         self.push_pickle = AmqpSynFactory(self, **kwargs_pickle)
         self.push_pickle.setup_read_queue(EXC, 'route_pickle', durable=False, auto_delete=True)
 
-        kwargs_responder = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.stripped.xml',
+        kwargs_responder = {'spec': 'file:../txamqp_ext/spec/amqp0-9-1.xml',
                             'parallel': True,
                             'push_back': True,
                             'full_content': True,
