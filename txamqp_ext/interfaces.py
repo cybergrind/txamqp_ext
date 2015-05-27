@@ -1,4 +1,3 @@
-
 from zope.interface import Interface
 from twisted.internet.interfaces import IProtocol
 from twisted.internet.interfaces import IProtocolFactory
@@ -39,7 +38,7 @@ class IAmqpProtocol(IProtocol):
         unsubscribe read channel and close it
         close write channel
         close connection
-        
+
         @return: deferred runned after protocol was
         stopped and disconnected
         '''
@@ -58,13 +57,13 @@ class IAmqpProtocolMonitoring(Interface):
 
     def on_message_send(callback):
         '''
-        
+
         '''
 
 
 class IAmqpFactory(IProtocolFactory):
     '''
-    support 
+    support
     '''
 
 
@@ -73,6 +72,3 @@ class IAmqpSynFactory(IAmqpFactory):
     Implements synchronous message sending
     '''
 
-    
-
-    
