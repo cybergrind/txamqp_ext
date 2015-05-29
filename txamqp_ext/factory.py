@@ -267,7 +267,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
             msg_body = msg
         if self.skip_encoding or skip_encoding:
             encoded = msg_body
-        elif self.serialization == 'cjson':
+        elif self.serialization in ('cjson', 'json'):
             encoded = json_encode(msg_body)
         elif self.serialization == 'cPickle':
             encoded = cPickle.dumps(msg_body)
