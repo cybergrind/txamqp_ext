@@ -1,6 +1,23 @@
+import os
+import sys
 from setuptools import setup, find_packages
+from setuptools.command.install import install
+
 
 version = '0.2.3'
+
+
+class InstallCheckTxamqp(install):
+    def run(self):
+        install.run(self)
+        try:
+            import txamqp  # noqa
+        except:
+            pp = sys.executable.replace('python', 'pip')
+            c0 = '{} uninstall -y txamqp'.format(pp)
+            c1 = '{} install txamqp'.format(pp)
+            os.system(c0)
+            os.system(c1)
 
 setup(name='txamqp_ext',
       version=version,
@@ -16,5 +33,8 @@ setup(name='txamqp_ext',
       zip_safe=False,
       install_requires=["Twisted>=10.0",
                         "txAMQP>=0.6.1",
-                        "msgpack-python"]
+                        "msgpack-python"],
+      cmdclass={
+          'install': InstallCheckTxamqp,
+      }
       )
