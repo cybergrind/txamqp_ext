@@ -14,8 +14,8 @@ class InstallCheckTxamqp(install):
             import txamqp  # noqa
         except:
             pp = sys.executable.replace('python', 'pip')
-            c0 = '{} uninstall -y txamqp'.format(pp)
-            c1 = '{} install txamqp'.format(pp)
+            c0 = '{0} uninstall -y txamqp'.format(pp)
+            c1 = '{0} install txamqp'.format(pp)
             os.system(c0)
             os.system(c1)
 
