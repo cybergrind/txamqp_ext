@@ -111,16 +111,17 @@ class TestEncoding(TestCase):
         encoded_msg['content type'] = 'application/x-msgpack'
         self.f.skip_decoding = False
         self.f.serialization = 'content_based'
+
         def _ok(_any):
             d.callback(True)
 
         def _ok_msg(_any):
             assert _any['content type'] == 'application/x-msgpack', _any
-            assert msg_body == _any.body, 'Got %r'%_any.body
+            assert msg_body == _any.body, 'Got %r' % _any.body
             d2.callback(True)
 
         def _err_msg(_any, msg):
-            print 'Fail002: %r'%msg
+            print 'Fail002: %r' % msg
             d2.errback(True)
             return {}
 
