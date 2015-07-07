@@ -295,6 +295,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
                   'application/x-msgpack': msgpack_decode,
                   'text/plain': lambda x: x,
                   '': lambda x: x}
+
     def decode_message(self, msg):
         # msg really just msg.content.body
         if self.skip_decoding:
@@ -304,7 +305,7 @@ class AmqpReconnectingFactory(protocol.ReconnectingClientFactory):
         elif self.serialization == 'cPickle':
             msg.content.body = cPickle.loads(msg.content.body)
         elif self.serialization == 'msgpack':
-            msg.content.bogy = msgpack_encode(msg.content.body)
+            msg.content.bogy = msgpack_decode(msg.content.body)
         elif self.serialization == CONTENT_BASED:
             dec_func = self.decode_map.get(msg.content.properties.get(self.content_type_name, ''))
             msg.content.body = dec_func(msg.content.body)
