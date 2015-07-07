@@ -1,10 +1,11 @@
 import os
 import sys
+from glob import glob
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 
 
-version = '0.2.6'
+version = '0.2.7'
 
 
 class InstallCheckTxamqp(install):
@@ -14,6 +15,9 @@ class InstallCheckTxamqp(install):
             import txamqp  # noqa
         except:
             pp = sys.executable.replace('python', 'pip')
+            if not os.path.exists(pp):
+                d = os.path.dirname(pp)
+                pp = glob(os.path.join(d, 'pip')+'*')[0]
             c0 = '{0} uninstall -y txamqp'.format(pp)
             c1 = '{0} install txamqp'.format(pp)
             os.system(c0)
