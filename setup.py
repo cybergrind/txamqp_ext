@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 from setuptools.command.install import install
 
 
-version = '0.2.8'
+version = '0.2.9'
 
 
 class InstallCheckTxamqp(install):
