@@ -5,12 +5,16 @@ from setuptools import setup, find_packages
 from setuptools.command.install import install
 
 
-version = '0.2.9'
+version = '0.3.0'
 
 
 class InstallCheckTxamqp(install):
     def run(self):
         install.run(self)
+        try:
+            import txamqp_ext  # noqa
+        except:
+            return
         try:
             import txamqp  # noqa
         except:
